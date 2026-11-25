@@ -110,7 +110,7 @@ export class ReplayAllocations {
       let bytes=0;for(let mip=0;mip<mips;mip++)bytes+=level(t,mip);return bytes;
     };
     for(const i of f.items) {
-      const data=i.data;
+      const data=i.kind==='gpu'&&i.op===O.SHADER_CREATE?undefined:i.data;
       if(typeof data==='string'){const bytes=payloadLength(data);decoded+=bytes;staging=Math.max(staging,2*bytes);}
       else if(data instanceof Uint8Array&&((data.byteOffset&7)||!(data.buffer instanceof ArrayBuffer)))decoded+=data.byteLength;
       if(i.kind==='texCreate')allocations+=Number(i.width)*Number(i.height)*4+256;

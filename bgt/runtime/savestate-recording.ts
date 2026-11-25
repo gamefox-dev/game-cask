@@ -56,6 +56,16 @@ function alignedUpload(data:Uint8Array):Uint8Array<ArrayBuffer>{
 }
 export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
   return record.items.map(i=>{
+    // WebGPU keeps shader items after execution. Rebuild just the descriptor,
+    // not arbitrary payloads/properties that an imported frame may carry.
+    if(i.kind==='gpu'&&i.op===O.SHADER_CREATE){
+      const words=Array.isArray(i.words)?[...i.words]:[];
+      if(words.length!==6||!words.every(w=>Number.isInteger(w)&&w>=0&&w<=0xffffffff)||typeof i.source!=='string')
+        throw new Error('Invalid recorded shader descriptor');
+      return {kind:'gpu',op:O.SHADER_CREATE,words,source:i.source,
+        ...(typeof i.executeCode==='number'?{executeCode:i.executeCode}:{}),
+        ...(typeof i.completeCode==='number'?{completeCode:i.completeCode}:{})};
+    }
     const data=typeof i.data==='string'?decodeBytes(i.data):i.data instanceof Uint8Array?alignedUpload(i.data):undefined;
     return {...i,...(data===undefined?{}:{data}),...(i.kind==='readback'?{complete:()=>{}}:{})};
   }) as FrameItem[];
@@ -63,11 +73,11 @@ export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
 // WebGPU keeps shader items for their source and descriptor, even on failure.
 // A pending callback must not close over the frame (and all its uploads), and
 // a completed shader no longer needs the callback or its promise at all.
-function replayShader(item:GpuItem,expected:unknown):Promise<void> {
+function replayShader(item:GpuItem,expected:number|undefined):Promise<void> {
   return new Promise((resolve,reject)=>{
     item.complete=(code,log)=>{
       delete item.complete;
-      if(typeof expected==='number'?code!==expected:!!code)reject(new Error(log||'Shader replay outcome changed'));
+      if(code!==(expected??0))reject(new Error(log||'Shader replay outcome changed'));
       else resolve();
     };
   });
@@ -96,8 +106,8 @@ export class CheckpointReplay {
   stop():void {this.active=false;this.unwrap?.();this.unwrap=undefined;}
   async draw(record:CheckpointFrame, finish = true):Promise<void>{
     const frame=restoreCheckpointFrame(record),pending:Promise<void>[]=[];
-    frame.items.forEach((item,i)=>{
-      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(replayShader(item,record.items[i].completeCode));
+    frame.items.forEach(item=>{
+      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(replayShader(item,(item as GpuItem & {completeCode?:number}).completeCode));
       if(item.kind==='readback')item.complete=()=>{};
       if(item.kind==='gpu'&&(item.op===O.BUFFER_READBACK||item.op===O.TEXTURE_READBACK))item.readback=()=>{};
     });

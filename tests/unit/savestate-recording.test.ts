@@ -68,6 +68,11 @@ it.each([0,-6])('releases settled replay shader callbacks retained by WebGPU (ou
   {kind:'gpu',op:O.BUFFER_CREATE,words:[2,1,4096,0,4096],data:new Uint8Array(4096)},
   {kind:'gpu',op:O.BUFFER_DELETE,words:[2]}];
  const record=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
+ // Imported records can contain unused properties. No arbitrary decoded or
+ // realigned payload should become part of WebGPU's retained shader descriptor.
+ const attachment=new Uint8Array(new ArrayBuffer(8193),1);
+ record.items[0].data=attachment;
+ record.items[0].extra={attachment};
  // Model the successful and failed shader tables: keep only the shader item
  // (not the disposable frame or its upload) after executing the commands.
  const retained:GpuItem[]=[];
@@ -86,6 +91,7 @@ it.each([0,-6])('releases settled replay shader callbacks retained by WebGPU (ou
  await cursor.draw(record,()=>{});
  expect(retained).toHaveLength(1);
  expect(retained[0].complete).toBeUndefined();
+ expect(retained[0]).toEqual(f.items[0]);
  expect(cursor.bytes()-before).toBe(96+8*retained[0].words.length+2*retained[0].source!.length);
  f.items=[{kind:'gpu',op:O.SHADER_DELETE,words:[1]}];
  await cursor.draw(recordCheckpointFrame(f,record.letterbox,2,4,4),()=>{},false);
