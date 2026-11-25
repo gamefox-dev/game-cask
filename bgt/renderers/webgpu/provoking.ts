@@ -14,6 +14,13 @@ export function rotateList(v: ArrayLike<number>, n: 2 | 3): Uint32Array<ArrayBuf
   return out;
 }
 
+export function sequenceCapacity(primitives:number):number {
+  let cap=1024;while(cap<primitives)cap*=2;return cap;
+}
+export function indexRingSize(bytes:number):number {
+  let size=1<<20;while(size<bytes)size*=2;return size;
+}
+
 /** Static rotated sequences {k*n + rotation} for non-indexed list draws (drawn with base_vertex = first); grown by
  * powers of two, so a steady draw costs no upload. */
 export class RotatedSequences {
@@ -22,7 +29,7 @@ export class RotatedSequences {
   get(n: 2 | 3, primitives: number): GPUBuffer {
     const have = this.lists.get(n);
     if (have && have.primitives >= primitives) return have.buffer;
-    let cap = 1024; while (cap < primitives) cap *= 2;
+    const cap=sequenceCapacity(primitives);
     const seq = new Uint32Array(cap * n); for (let i = 0; i < seq.length; i++) seq[i] = i;
     const data = rotateList(seq, n);
     const buffer = this.device.createBuffer({ size: data.byteLength, usage: GPUBufferUsage.INDEX, mappedAtCreation: true });
@@ -31,6 +38,7 @@ export class RotatedSequences {
     this.lists.set(n, { buffer, primitives: cap });
     return buffer;
   }
+  get bytes(): number { let n=0;for(const l of this.lists.values())n+=l.buffer.size;return n; }
   destroy(): void { for (const l of this.lists.values()) l.buffer.destroy(); this.lists.clear(); }
 }
 
@@ -50,7 +58,7 @@ export class RotatedIndexRing {
     const data = make(), bytes = Math.max(4, data.byteLength);
     if (!this.buffer || this.at + bytes > this.size) {
       if (this.buffer) this.retire(this.buffer);
-      let size = 1 << 20; while (size < bytes) size *= 2;
+      const size=indexRingSize(bytes);
       this.buffer = this.device.createBuffer({ size, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
       this.size = size; this.at = 0; this.entries.clear(); this.created++;
     }
@@ -59,5 +67,6 @@ export class RotatedIndexRing {
     this.at += bytes; this.entries.set(key, entry);
     return { buffer: this.buffer, ...entry };
   }
+  get bytes(): number { return this.buffer?.size??0; }
   destroy(): void { this.buffer?.destroy(); this.buffer = undefined; this.entries.clear(); }
 }

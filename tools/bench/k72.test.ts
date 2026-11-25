@@ -25,6 +25,8 @@ export const K72_VARIANTS: Record<string, Record<string, string>> = {
   compact: { sync: 'minimal', calls: 'outlined' },
   inl16: { inline: '16' },
   compact16: { sync: 'minimal', calls: 'outlined', inline: '16' },
+  // K78: the self-checking diagnostic build of compact16 (its cost; must print and hash like the reference variant).
+  check16: { sync: 'minimal', calls: 'outlined', inline: '16', check: 'sync' },
   // Every call a real call: isolates the call-site protocol cost (K52 calls/vm fixtures).
   base0: { inline: '0' },
   compact0: { sync: 'minimal', calls: 'outlined', inline: '0' },

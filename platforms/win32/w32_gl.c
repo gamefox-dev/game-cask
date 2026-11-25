@@ -295,8 +295,11 @@ static void present_interval0(void) {
     for (uint32_t i = 3; i; i--) recent_frames[i] = recent_frames[i - 1];
     recent_frames[0] = guest_frame; guest_frame = (gpu_usage_t){0};
     w32_guest_present(1);
-    deferring = !w32_clock_swap0(!fit || !next_frame_fits());
+    if (!w32_clock_swap0(!fit || !next_frame_fits())) deferring = 1;
 }
+/* The resume pump can run a worker's interval-zero present. Clear deferral
+ * only after that pump on both the native-stack and returnable paths. */
+void w32_gl_finish_swap0(void) { deferring = 0; }
 void w32_gl_host_yield(int resume) {
     if (!resume) { if (exposed) gl_torn_frames++; exposed = 0; return; }
     deferring = 0; in_hook = 1; journal_submit(); in_hook = 0;

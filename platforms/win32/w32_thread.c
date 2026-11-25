@@ -375,7 +375,7 @@ void w32_thread_init(void) {
     }
     x86_sched_init();
 }
-void w32_thread_return(uint32_t code) {
+void w32_thread_return_step(uint32_t code, int outer_return) {
     X.transfer = 0; /* A normal guest RET arrives via the scheduler transfer sentinel. */
     thread_t *t = self();
     for (uint32_t pass = 0; pass < 4; pass++) for (uint32_t i = 0; i < 128; i++) {
@@ -401,19 +401,25 @@ void w32_thread_return(uint32_t code) {
     if (!live) {
         w32_exited = 1; w32_exit_code = code;
         w32_log("win32 profile: last thread exited");
+        if (w32_checkpoint_exit(outer_return)) return;
         for (;;) w32_wait_frame();
     }
     X.transfer = X86_SCHEDULE;
 }
+void w32_thread_return(uint32_t code) { w32_thread_return_step(code,0); }
 static uint64_t idle_guard_hits;
 uint64_t w32_thread_idle_guard_hits(void) { return idle_guard_hits; }
-void w32_thread_schedule(void) {
+/* Only the outer update uses the returnable form. The parked phase resumes before
+ * pumping/saving (1), or after the idle limit with the already-saved CPU (2). */
+int w32_thread_schedule_step(int phase, int portable) {
     uint32_t zero_rounds = 0;
     scheduling = 1;
-    w32_clock_check_cap();
-    w32_audio_pump();w32_user_fire_timers();
-    x86_account_observe(bgt_time_us(),w32_now_ms64());
-    x86_sched_save();
+    if (!phase && w32_schedule_cap(portable)) return 1;
+    if (phase != 2) {
+        w32_audio_pump();w32_user_fire_timers();
+        x86_account_observe(bgt_time_us(),w32_now_ms64());
+        x86_sched_save();
+    }
     for (;;) {
         wake_waiters();
         x86_account_observe(bgt_time_us(),w32_now_ms64());
@@ -437,14 +443,16 @@ void w32_thread_schedule(void) {
         if(!delay && zero_rounds++<2) { w32_audio_pump();w32_user_fire_timers();continue; }
         if(!delay) { idle_guard_hits++;delay=1; }
         zero_rounds=0;
-        w32_idle_ms(delay);
+        if (w32_schedule_idle(delay, portable)) return 2;
     }
     scheduling = 0;
     if (self()->fresh) {
         self()->fresh = 0;
         tls_notify(2);
     }
+    return 0;
 }
+void w32_thread_schedule(void) { w32_thread_schedule_step(0,0); }
 static void park_native(void) {
     /* Keep the profile's native C locals until this exact guest caller can return.
      * A nested callback wait excludes all outer parked continuations from dispatch. */

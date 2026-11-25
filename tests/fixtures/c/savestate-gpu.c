@@ -3,6 +3,12 @@
 #include "bgt.h"
 #include "bgt_cmd.h"
 BGT_DEFINE_IO(io)
+#ifdef K77_MEMORY_MIB
+static uint32_t scratch_base;
+static _Alignas(16) unsigned char async_buffer[65536];
+BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buffer; }
+BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buffer; }
+#endif
 #ifndef STRESS_DRAWS
 #define STRESS_DRAWS 1
 #endif
@@ -20,6 +26,28 @@ static void check(int32_t code) {if(code<0)bgt_abort(code,"savestate GPU fixture
 static void texture(uint32_t handle,uint32_t width,uint32_t height,uint32_t format) {
     bgt_gpu_texture_create_t t={handle,width,height,1,format,3};bgt_cmd_gpu_texture_create(&cb,&t);
 }
+#ifdef K77_GPU_HEAVY
+/* 240 MiB resident RGBA8. Spread initial uploads across updates, then replace
+ * one 4 MiB texture periodically. Sample the set in rotation (including late
+ * uploads), so loss of the large resource data is visible after restore. */
+#define HEAVY_COUNT 60u
+#define HEAVY_SIDE 1024u
+#define HEAVY_FIRST 100u
+static uint32_t heavy_pixels[HEAVY_SIDE*HEAVY_SIDE];
+static uint32_t heavy_live;
+static uint32_t heavy_texture(void) {
+    if(heavy_live<HEAVY_COUNT || tick%256u==0) {
+        uint32_t create=heavy_live<HEAVY_COUNT;
+        uint32_t slot=create?heavy_live++:(tick/256u)%HEAVY_COUNT;
+        uint32_t tex=HEAVY_FIRST+slot;
+        if(create) texture(tex,HEAVY_SIDE,HEAVY_SIDE,0);
+        for(uint32_t i=0;i<HEAVY_SIDE*HEAVY_SIDE;i++)heavy_pixels[i]=0xff000000u|((i*2654435761u+tick*173u)&0xffffffu);
+        bgt_gpu_texture_update_t u={tex,0,0,0,HEAVY_SIDE,HEAVY_SIDE,(uint32_t)(uintptr_t)heavy_pixels,sizeof heavy_pixels};
+        bgt_cmd_gpu_texture_update(&cb,&u);
+    }
+    return HEAVY_FIRST+tick%heavy_live;
+}
+#endif
 static void upload(void) {bgt_gpu_texture_update_t u={3,0,0,0,1,1,(uint32_t)(uintptr_t)&pixel,4};bgt_cmd_gpu_texture_update(&cb,&u);}
 static void upload_depth(void) {bgt_gpu_texture_update_t u={5,0,0,0,1,1,(uint32_t)(uintptr_t)&depth_value,4};bgt_cmd_gpu_texture_update(&cb,&u);}
 static void upload_half(void) {bgt_gpu_texture_update_t u={6,0,0,0,1,1,(uint32_t)(uintptr_t)half_pixel,8};bgt_cmd_gpu_texture_update(&cb,&u);}
@@ -89,6 +117,10 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
 #ifdef PROVENANCE_MUTATION
     if(tick>3) {pass.depth_load=0;pass.stencil_load=0;}
 #endif
+    uint32_t sample=3;
+#ifdef K77_GPU_HEAVY
+    sample=heavy_texture();
+#endif
     bgt_cmd_gpu_pass_begin(&cb,&pass,&color);
 #if PROVENANCE_MUTATION == 3
     if(tick==4) {
@@ -101,7 +133,7 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     }
 #endif
     bgt_gpu_pipeline_t pipeline={1};bgt_cmd_gpu_pipeline(&cb,&pipeline);
-    bgt_gpu_texture_t binding={0,3,1};bgt_cmd_gpu_texture(&cb,&binding);
+    bgt_gpu_texture_t binding={0,sample,1};bgt_cmd_gpu_texture(&cb,&binding);
     bgt_gpu_stencil_ref_t ref={tick&255};
 #ifdef INITIAL_STENCIL
     ref.value=0;
@@ -131,6 +163,17 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     blit.source_rect[2]=64;blit.source_rect[3]=64;blit.destination_rect[2]=64;blit.destination_rect[3]=64;blit.mask=1;
     blit.scissor[2]=64;blit.scissor[3]=64;
     bgt_cmd_gpu_blit(&cb,&blit);check(bgt_cmd_submit(&cb));hash=hash*33u+tick+io.buttons;
+#ifdef K77_MEMORY_MIB
+    if(!scratch_base) {
+        scratch_base=__builtin_wasm_memory_size(0)*65536u;
+        if(__builtin_wasm_memory_grow(0,K77_MEMORY_MIB*16u)==(unsigned long)-1)bgt_abort(-1,"grow",4);
+    }
+    uint32_t off=(tick&7u)*(K77_MEMORY_MIB*1024u*1024u/8u);
+    volatile uint32_t *p=(volatile uint32_t *)(uintptr_t)(scratch_base+off);
+    *p=(*p*31u)^hash;
+    hash^=*p;
+    bgt_yield();
+#endif
 }
 BGT_EXPORT(bgt_render) void bgt_render(void) {}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) {return hash;}

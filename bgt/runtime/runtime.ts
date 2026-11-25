@@ -27,7 +27,7 @@ import {
 } from './abi';
 import { resolveGpuLimits, type GpuLimitsPolicy } from './gpu-limits-policy';
 import type { CommandError, DecodeResult, Frame } from './commands';
-import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices } from './host';
+import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices, type CheckpointBootState } from './host';
 import { Vfs } from './vfs';
 import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
 import { WebAudioSink } from '../audio/audio';
@@ -217,11 +217,12 @@ export class BGTRuntime {
   /** Installed only by the opt-in test API, before start(). */
   declare testHarness?: {
     services(s: HostServices): HostServices;
+    trackHost(host: GameHost): void;
     updated(): void;
     afterFrame?(): Promise<void>;
     frame(frame: Frame, letterbox: Letterbox, update: number, width: number, height: number): void;
   };
-  declare testHostFactory?: (renderer: Renderer) => Promise<GameHost>;
+  declare testHostFactory?: (renderer: Renderer, checkpointBoot?: CheckpointBootState) => Promise<GameHost>;
   declare testQuiescent: () => boolean;
   private stepping = false;
   declare testCheckpointBusy: boolean;
@@ -554,9 +555,13 @@ export class BGTRuntime {
           sliceCodeRanges: manifest.slice?.codeRanges,
           suspensionMode: variant.mode,
         };
-      if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHostFactory = this.testHarness ? (renderer) => GameHost.create(wasm,actualServices,
-        {...config,gpuBackend:renderer.gpu}) : undefined;
-      this.host = await GameHost.create(wasm,actualServices,config);
+      if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testHarness) {
+        Object.assign(config, {checkpointBoundaries:true});
+        const harness=this.testHarness;
+        this.testHostFactory = (renderer, checkpointBoot) =>
+          GameHost.create(wasm,actualServices,{...config,gpuBackend:renderer.gpu},harness.trackHost,checkpointBoot);
+        this.host = await this.testHostFactory(this.renderer);
+      } else this.host = await GameHost.create(wasm,actualServices,config);
       this.linearAtInstantiate = this.host.memoryBytes;
       this.loadMarks.instantiateMs = this.host.instantiateMs;
       this.samplePeak();

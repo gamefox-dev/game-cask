@@ -123,6 +123,7 @@ int w32_clock_quantum_fits(uint32_t units, uint32_t carry); /* K52; K75 carry */
 void w32_clock_present(uint32_t interval);
 int w32_clock_swap0(int budget_full);
 void w32_gl_host_yield(int resume);
+void w32_gl_finish_swap0(void);
 void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands);
 uint64_t w32_gl_deferred_yields(void);
 uint64_t w32_gl_torn_frames(void);
@@ -130,6 +131,11 @@ uint64_t w32_gl_deferred_lists(void);
 uint64_t w32_gl_deferred_rejects(void);
 uint64_t w32_audio_events_coalesced(void);
 void w32_wait_transport(void);
+void w32_wait_present(void); /* Tail of a GL SwapBuffers import. */
+int w32_checkpoint_exit(int outer_return);
+int w32_schedule_cap(int portable);
+int w32_schedule_idle(uint32_t ms, int portable);
+int w32_thread_schedule_step(int phase, int portable);
 /* K53: submit the GL profile's deferred GPU list (frame boundaries, foreign submissions). */
 void w32_gl_flush(void);
 void w32_gdi_present_boundary(void);

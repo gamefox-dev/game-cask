@@ -119,6 +119,8 @@ Write a one-line verdict per reviewed screenshot into the queue item or `reports
    failures (aborted, DNS, connection refused). `collector.allow(re)` covers errors and HTTP statuses only;
    `collector.allow({ pattern, max })` allows at most `max` matches (bound an authentic repeated guest error, cite it in
    the queue); `collector.allowRequestFailure(re | { pattern, max })` is the only way to allow an intentional abort.
+   If a controlled navigation abandons a known in-flight request, use `collector.navigateAway(url, request)` to
+   handle WebKit's early cancellation without exempting other requests (see `docs/webkit.md`).
 
 ## Classification (be strict)
 - **booted (L1)**: `ready()`, no errors, and the first screen is **authentic** (matches the original's look;

@@ -51,6 +51,9 @@ import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, CAP_GP
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 import type { captureHost } from './savestate-host';
+/** Test-only hooks (dev server or VITE_BGT_TEST builds). Guarded: host.ts also runs under plain Node (test setup), where
+ * `import.meta.env` is undefined; Vite still folds the flags at build time. */
+const TEST_HOOKS = typeof import.meta.env !== 'undefined' && !!(import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1');
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -80,8 +83,12 @@ export interface HostServices {
   rangeRead?(path: string, offset: number, length: number, ahead?: boolean): Promise<Uint8Array<ArrayBuffer>>;
 }
 
+/** Dev/test only: startup metadata already validated at the original boot. */
+export interface CheckpointBootState { abiVersion: number; ioPtr: number; memoryBytes: number }
+
 export interface HostConfig {
   suspensionMode?: 'asyncify' | 'jspi';
+  checkpointBoundaries?: boolean; // opt-in dev/test, never automatic fallback to Asyncify
   backend: number;
   caps: number;
   seed: number;
@@ -215,7 +222,7 @@ const utf8 = new TextDecoder('utf-8', { fatal: false });
 export class GameHost {
   declare private rawExports: WebAssembly.Exports;
   declare assertCheckpointBoundary: () => void;
-  declare checkpoint: () => ReturnType<typeof captureHost>;
+  declare checkpoint: (onWasmMs?: (ms:number)=>void) => ReturnType<typeof captureHost>;
   declare restoreCheckpoint: (state: ReturnType<typeof captureHost>) => void;
   readonly frame = new Frame();
   readonly textures = new TextureTable();
@@ -262,6 +269,10 @@ export class GameHost {
   private jspiResume: (() => void) | null = null;
   private jspiBoundary: {resolve: () => void; reject: (error: unknown) => void} | null = null;
   private jspiBusy = false;
+  declare testPortableBoundary?: () => number;
+  // Installed only by the opt-in checkpoint controller. The guarded call sites
+  // enumerate all BGT host writes to linear memory, in addition to wasm stores.
+  declare testTrackWrites?: (at:number, bytes:number) => void;
   /** updates that ended suspended in bgt_yield (vs. returning normally) */
   yields = 0;
   /** set when the game changed its logical size during an update (v0.2) */
@@ -299,7 +310,9 @@ export class GameHost {
     if (this.gpu?.backend.constAttrib) config.caps |= CAP_GPU_CONST_ATTRIB; else config.caps &= ~CAP_GPU_CONST_ATTRIB;
   }
 
-  static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
+  static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig,
+    onInstance?: (host: GameHost) => void, checkpointBoot?: CheckpointBootState): Promise<GameHost> {
+    const restored = typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? checkpointBoot : undefined;
     const host = new GameHost(services, config);
     const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
     const imports = host.imports();
@@ -339,17 +352,33 @@ export class GameHost {
         host.wasmEntries++;
         try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.wasmEntries--; }
       }])) as unknown as GameExports;
+    // Instrumented modules reject wasm start functions. Install write tracking
+    // with memory bound but before *any* startup export can call a host import.
+    if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) onInstance?.(host);
     // promising requires the actual wasm function, not the synchronous guard.
-    if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
-    const v = host.exports.bgt_abi_version() >>> 0;
+    if (config.suspensionMode === 'jspi') {
+      host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
+      if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && config.checkpointBoundaries) {
+        const enable = instance.exports.bgt_enable_checkpoint_boundaries;
+        const parked = instance.exports.bgt_checkpoint_parked;
+        if (typeof enable === 'function' && typeof parked === 'function') {
+          if (!restored) enable(); // its wasm state is included in the snapshot
+          host.testPortableBoundary = parked as () => number;
+        }
+      }
+    }
+    // Checkpoint instrumentation forbids a wasm start function. Leave this
+    // instance at its pristine module image for sparse restore; calling even
+    // the metadata exports can write memory or mutate live host services.
+    const v = (restored ? restored.abiVersion : host.exports.bgt_abi_version()) >>> 0;
     host.abiVersion = v;
     if (v < 0x000300) host.config.caps &= ~(CAP_GPU_BUFFER_HANDLES | CAP_GPU_GL_RASTER | CAP_GPU_CONST_ATTRIB);
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
     }
-    host.ioPtr = host.exports.bgt_io() >>> 0;
-    if (host.ioPtr === 0 || host.ioPtr % 4 !== 0 || host.ioPtr + IO.SIZE > host.memory.buffer.byteLength) {
+    host.ioPtr = (restored ? restored.ioPtr : host.exports.bgt_io()) >>> 0;
+    if (host.ioPtr === 0 || host.ioPtr % 4 !== 0 || host.ioPtr + IO.SIZE > (restored?.memoryBytes ?? host.memory.buffer.byteLength)) {
       throw new HostError(`bgt_io() returned invalid address ${host.ioPtr}`);
     }
     return host;
@@ -486,6 +515,7 @@ export class GameHost {
               else globalThis.crypto.getRandomValues(chunk);
             }
             this.mem().set(bytes, ptr >>> 0);
+            if (TEST_HOOKS) this.testTrackWrites?.(ptr >>> 0, bytes.length);
             return BGT_OK;
           } catch { return E_IO; }
         },
@@ -513,6 +543,7 @@ export class GameHost {
           if (n && dst + n * 8 > this.mem().byteLength) return E_BOUNDS;
           const dv = new DataView(this.mem().buffer, this.mem().byteOffset);
           for (let i = 0; i < n; i++) { dv.setUint32(dst + i * 8, failed[i].offset, true); dv.setUint32(dst + i * 8 + 4, failed[i].code >>> 0, true); }
+          if (TEST_HOOKS) this.testTrackWrites?.(dst,n*8);
           return failed.length;
         },
         slice_missing: (kind: number,addr: number) => {
@@ -556,12 +587,15 @@ export class GameHost {
             this.gpu?.backend.languages ?? 0, 13, 65535, this.gpu?.varyingComponents ?? 0,
           );
           values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,size);
           return 0;
         },
         request_status: (id: number) => this.requests.status(id >>> 0),
         request_read: (id: number, dst: number, cap: number) => {
           if (!this.inRange(dst,cap)) return E_BOUNDS;
-          return this.requests.read(id >>> 0,this.mem().subarray(dst >>> 0,(dst >>> 0)+(cap >>> 0)));
+          const n=this.requests.read(id >>> 0,this.mem().subarray(dst >>> 0,(dst >>> 0)+(cap >>> 0)));
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,n);
+          return n;
         },
         request_close: (id: number) => this.requests.close(id >>> 0),
         asset_open: (ptr: number, len: number) => {
@@ -572,7 +606,9 @@ export class GameHost {
         asset_size64: (h: number,dst: number) => {
           if (!this.inRange(dst,8)) return E_BOUNDS;
           const size=s.vfs.size(h);if(size<0)return size;
-          this.dv().setBigUint64(dst >>> 0,BigInt(size),true);return 0;
+          this.dv().setBigUint64(dst >>> 0,BigInt(size),true);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,8);
+          return 0;
         },
         asset_range_request: (h: number,lo: number,hi: number,len: number) => rangeRequest(h,lo,hi,len),
         asset_read_ahead: (h: number,lo: number,hi: number,len: number) => rangeRequest(h,lo,hi,len,true),
@@ -586,7 +622,9 @@ export class GameHost {
         },
         asset_read: (h: number, dst: number, size: number) => {
           if (!this.inRange(dst, size)) return E_BOUNDS;
-          return s.vfs.read(h, this.mem().subarray(dst >>> 0, (dst >>> 0) + (size >>> 0)));
+          const n=s.vfs.read(h, this.mem().subarray(dst >>> 0, (dst >>> 0) + (size >>> 0)));
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,n);
+          return n;
         },
         asset_seek: (h: number, off: number) => s.vfs.seek(h, off >>> 0),
         asset_close: (h: number) => s.vfs.close(h),
@@ -617,6 +655,7 @@ export class GameHost {
           dv.setUint32(p + 4, pad?.buttons ?? 0, true);
           for (let a = 0; a < 4; a++) dv.setInt16(p + 8 + 2 * a, pad?.axes[a] ?? 0, true);
           for (let t = 0; t < 2; t++) dv.setUint16(p + 16 + 2 * t, pad?.triggers[t] ?? 0, true);
+          if (TEST_HOOKS) this.testTrackWrites?.(p,20);
           return BGT_OK;
         },
         audio_queued: () => (s.audio ? s.audio.queued() : 0),
@@ -628,6 +667,7 @@ export class GameHost {
           const v = s.storage.read(key);
           if (!v) return -5;
           this.mem().set(v.subarray(0, Math.min(v.byteLength, cap >>> 0)), dst >>> 0);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,Math.min(v.byteLength,cap>>>0));
           return v.byteLength;
         },
         storage_write: (kp: number, kl: number, src: number, len: number) => {
@@ -660,6 +700,7 @@ export class GameHost {
           const size = this.exports.bgt_async_buffer_size!() >>> 0;
           dv.setUint32(this.asyncBuf, this.asyncBuf + 8, true);
           dv.setUint32(this.asyncBuf + 4, this.asyncBuf + size, true);
+          if (TEST_HOOKS) this.testTrackWrites?.(this.asyncBuf,8);
           ex.asyncify_start_unwind!(this.asyncBuf);
           this.asyncState = AsyncState.Unwinding;
         },
@@ -705,6 +746,7 @@ export class GameHost {
     dv.setUint32(p + IO.arg1, c.arg1 >>> 0, true);
     this.frame.reset(1, 1);
     this.state = defaultState(1, 1);
+    if (TEST_HOOKS) this.testTrackWrites?.(p,IO.SIZE);
     const rc = this.exports.bgt_init(p) | 0;
     if (rc !== BGT_OK) throw new HostError(`bgt_init failed with ${errorName(rc)}`);
     const d2 = this.dv();
@@ -748,6 +790,7 @@ export class GameHost {
         overlap(ep,entries.length*4,rp,ranges.length*8))throw new HostError('overlapping slice-policy buffers');
       entries.forEach((a,i)=>v.setUint32(ep+4*i,a,true));
       ranges.forEach((r,i)=>{v.setUint32(rp+8*i,r.addr,true);v.setUint32(rp+8*i+4,r.end,true);});
+      if (TEST_HOOKS) { this.testTrackWrites?.(ep,entries.length*4); this.testTrackWrites?.(rp,ranges.length*8); }
     }
     this.initialized = true;
     return rc;
@@ -793,6 +836,7 @@ export class GameHost {
     }
     this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr+IO.backend,4);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;
     if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes, this.config.gpuLimits); }
@@ -805,12 +849,14 @@ export class GameHost {
     else this.config.caps &= ~CAP_GPU_CONST_ATTRIB;
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr,IO.SIZE);
   }
 
   setDisplaySize(w: number, h: number): void {
     const dv = this.dv();
     dv.setUint32(this.ioPtr + IO.display_width, w, true);
     dv.setUint32(this.ioPtr + IO.display_height, h, true);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr,IO.SIZE);
   }
 
   private gamepads: GamepadSnapshot[] = [];
@@ -839,6 +885,7 @@ export class GameHost {
     const n = Math.min(MAX_TOUCHES, inp.touches.length);
     dv.setUint32(p + IO.touch_count, n, true);
     dv.setUint32(p + IO.events, inp.events >>> 0, true);
+    if (TEST_HOOKS) this.testTrackWrites?.(p,IO.SIZE);
     for (let k = 0; k < MAX_TOUCHES; k++) {
       const o = p + IO.touches + k * IO.TOUCH_SIZE;
       const t = inp.touches[k];
@@ -941,7 +988,14 @@ export class GameHost {
         resume();
       } else {
         this.jspiTask = this.jspiUpdate!(DT_US).then(() => {
-          this.jspiTask = null; this.jspiBoundary?.resolve();
+          this.jspiTask = null;
+          try {
+            if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testPortableBoundary?.()) {
+              this.asyncState = AsyncState.Suspended;
+              this.yields++;
+            }
+            this.jspiBoundary?.resolve();
+          } catch(error) { this.jspiBoundary?.reject(error); }
         }, (error: unknown) => {
           this.jspiTask = null; this.jspiBoundary?.reject(error);
         });

@@ -242,10 +242,10 @@ export function ownerCensus(env = process.env) {
   if (value === '1' && env.BGT_CPU_ACCOUNTING === '0') throw new Error('BGT_OWNER_CENSUS=1 requires exact accounting; unset BGT_CPU_ACCOUNTING=0');
   return value === '1';
 }
-/** vK72b/vK75: the test-only wrong lifted RET is refused for any game under port/, compared by real path so a
+/** vK72b/vK75/K78: the test-only wrong lifted code (testCorrupt stack|sync) is refused for any game under port/, compared by real path so a
  * symlinked alias of port/ (or of the game directory) cannot pass. */
 export function refuseTestCorruptPort(policy, gameDir, root = ROOT) {
-  if (policy.liftFast?.testCorrupt !== 'stack') return;
+  if (!policy.liftFast?.testCorrupt || policy.liftFast.testCorrupt === 'off') return; // K78: every corruption kind
   // vK75b: both ways: the lexical and the real game path against the lexical and the real port/ path, so neither a
   // symlink into port/ nor a symlink inside port/ that points elsewhere passes.
   const real = (q) => { try { return realpathSync(q); } catch { return resolve(q); } };
@@ -435,6 +435,8 @@ BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; ${cfg.slice && plan ? `x86_set_slice(slice_entries,${sliceCode.size},slice_ranges,${sliceRanges.length});` : ''} x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); x86_register_code_owner_addresses(code_owners); return w32_boot(&config, &io); }
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); x86_coverage_flush(); }
+BGT_EXPORT(bgt_enable_checkpoint_boundaries) void bgt_enable_checkpoint_boundaries(void) { w32_enable_checkpoint_boundaries(); }
+BGT_EXPORT(bgt_checkpoint_parked) uint32_t bgt_checkpoint_parked(void) { return w32_checkpoint_parked(); }
 BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
 ${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(uint32_t entries,uint32_t ranges) { return x86_prepare_host_slice(entries,ranges); }\nBGT_EXPORT(bgt_slice_first_entry) uint32_t bgt_slice_first_entry(void) {return x86_slice_first_entry();}' : ''}

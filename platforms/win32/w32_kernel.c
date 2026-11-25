@@ -154,6 +154,7 @@ void w32_exit_guest(uint32_t code) {
     w32_exited = 1;
     w32_exit_code = code;
     w32_log("win32 profile: ExitProcess");
+    if (w32_checkpoint_exit(0)) return;
     for (;;) w32_wait_frame();
 }
 static uint32_t k_ExitProcess(void) { w32_exit_guest(ARG(0)); return 0; }

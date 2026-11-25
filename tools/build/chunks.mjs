@@ -57,7 +57,9 @@ export function liftPolicy(p = {}, env = process.env) {
     const allowed = { resume: ['on', 'off'], fuse: ['on', 'off'], memory: ['range', 'mask', 'select', 'off'], entries: ['restricted', 'all'],
       quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'],
       sync: ['full', 'minimal'], calls: ['inline', 'outlined'], flags: ['observed', 'abi'] /* K75: abi = K52 rule, measurement */,
-      testCorrupt: ['off', 'stack'] /* vK72 test only: a deliberately wrong lifted RET (guest-state oracle test) */ };
+      check: ['off', 'sync'] /* K78: self-checking diagnostic build (minimal-sync and call-contract violations) */,
+      testCorrupt: ['off', 'stack', 'sync'] /* test only: vK72 a deliberately wrong lifted RET (guest-state oracle test); K78 wrong
+        minimal-sync decisions (one dirty register never stored, no volatile reloaded after calls: the check build must report them) */ };
     for (const [key, value] of Object.entries(knobs)) {
       if (!allowed[key]?.includes(value)) throw new Error(`pipeline.liftFast.${key} must be one of ${allowed[key]?.join('/') ?? '(unknown knob)'}`);
     }
@@ -121,6 +123,7 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     const s = JSON.parse(readFileSync(t.out+'.stats.json','utf8'));
     for (const k of ['functions','specialized','generic','jumpTables','unresolvedJumps','flagsElided','entries']) stats[k] += s[k] ?? 0;
     if (s.fastFunctions !== undefined) stats.fastFunctions = (stats.fastFunctions ?? 0) + s.fastFunctions; // K52 fast mode only
+    if (s.fastCheckModelMisses !== undefined) stats.fastCheckModelMisses = (stats.fastCheckModelMisses ?? 0) + s.fastCheckModelMisses; // K78 check builds
     // K75: the observed-flags sets are module-wide (every chunk computes the same); their analysis time adds up.
     for (const k of ['fastFlagObservers', 'fastFlagExactExits', 'fastFlagUnknownCallees']) if (s[k] !== undefined) stats[k] = Math.max(stats[k] ?? 0, s[k]);
     if (s.fastFlagAnalysis_cpu_ms !== undefined) stats.fastFlagAnalysis_cpu_ms = (stats.fastFlagAnalysis_cpu_ms ?? 0) + s.fastFlagAnalysis_cpu_ms;

@@ -1,4 +1,4 @@
-// Private test artifacts. v2 streams raw blobs; JSON is a size-capped debug aid only.
+// Private test artifacts. v3 streams raw blobs with view aliases; JSON is a size-capped debug aid only.
 import type { Savestate } from './savestates';
 import { encodeBytes, decodeBytes } from '../renderers/recording';
 export const CHUNK_BYTES = 1024 * 1024;
@@ -69,13 +69,17 @@ async function transform(bytes:Uint8Array,compress:boolean):Promise<Uint8Array<A
 /** No snapshot-sized stringify, base64, concatenation or Blob. Pull provides backpressure. */
 export function exportSavestate(state:Savestate,options:ExportOptions={}):ReadableStream<Uint8Array> {
   async function* chunks() {
-    const start=new Uint8Array(16);start.set(magic);new DataView(start.buffer).setUint32(8,2,true);yield start;
+    const start=new Uint8Array(16);start.set(magic);new DataView(start.buffer).setUint32(8,3,true);yield start;
     let nextId=0;
+    const blobIds=new WeakMap<Uint8Array|Uint32Array,number>();
     for(const [key,value] of Object.entries(state)) {
       const blobs:{id:number;view:Uint8Array}[]=[];
       const metadata=JSON.stringify([key,value],(_k,v:unknown)=>{
         if(v instanceof Uint8Array || v instanceof Uint32Array){
-          const id=nextId++;blobs.push({id,view:new Uint8Array(v.buffer,v.byteOffset,v.byteLength)});
+          // Capture can share proven native/recovery bytes. Emit one payload for
+          // the same view wherever it occurs, without hashing any of the bytes.
+          let id=blobIds.get(v);
+          if(id===undefined){id=nextId++;blobIds.set(v,id);blobs.push({id,view:new Uint8Array(v.buffer,v.byteOffset,v.byteLength)});}
           return {$bgt:v instanceof Uint8Array?'blob8':'blob32',id,bytes:v.byteLength};
         }return special(v);
       });
@@ -116,22 +120,23 @@ class Reader {
   async end(){if(this.at!==this.current.length || !(await this.iterator.next()).done)throw new Error('Trailing savestate bytes');}
 }
 export async function importSavestate(source:SnapshotSource):Promise<Savestate> {
-  const r=new Reader(source),state:Record<string,unknown>={},blobs=new Map<number,{tag:Tag;data?:Uint8Array<ArrayBuffer>;at:number}>();
+  const r=new Reader(source),state:Record<string,unknown>={},blobs=new Map<number,{tag:Tag;data?:Uint8Array<ArrayBuffer>;at:number;view?:Uint8Array|Uint32Array}>();
   let metadata:Uint8Array<ArrayBuffer>[]=[],metadataBytes=0,nextId=0;
   // References are replaced after their chunks arrive; bounded per-blob allocation, never a whole-file buffer.
   const resolve=(v:unknown):unknown=>{
     if(v&&typeof v==='object'){
       if('$bgt' in v){const t=v as Tag;if(t.$bgt==='blob8'||t.$bgt==='blob32'){
         const b=blobs.get(t.id!)!;if(b.at!==t.bytes)throw new Error('Missing savestate blob bytes');
+        if(b.view)return b.view;
         const data=b.data??new Uint8Array();
         if(t.$bgt==='blob8'){
           // A blob may be a view into an arbitrarily split transport chunk.
           // Keep raw bytes cheap when aligned, but make all future typed views safe.
-          if((data.byteOffset&7)===0)return data;
-          const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
+          if((data.byteOffset&7)===0)return b.view=data;
+          const copy=new Uint8Array(data.byteLength);copy.set(data);return b.view=copy;
         }
         // blob32 was alignment-checked while the chunks were assembled.
-        return new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4);
+        return b.view=new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4);
       }}
       if(v instanceof Map)return new Map([...v].map(([k,x])=>[resolve(k),resolve(x)]));
       if(v instanceof Set)return new Set([...v].map(resolve));
@@ -141,7 +146,8 @@ export async function importSavestate(source:SnapshotSource):Promise<Savestate> 
   };
   try {
     const start=await r.read(16),dv=new DataView(start.buffer,start.byteOffset,16);
-    if(!magic.every((v,i)=>v===start[i])||dv.getUint32(8,true)!==2||dv.getUint32(12,true))throw new Error('Unsupported savestate binary version/header');
+    const version=dv.getUint32(8,true);
+    if(!magic.every((v,i)=>v===start[i])||(version!==2&&version!==3)||dv.getUint32(12,true))throw new Error('Unsupported savestate binary version/header');
     for(;;){const h=await r.read(24),d=new DataView(h.buffer,h.byteOffset,24);
       const [type,codec,id,offset,raw,stored]=Array.from({length:6},(_,i)=>d.getUint32(i*4,true));
       if(type===4){if(codec||id||offset||raw||stored||metadataBytes)throw new Error('Invalid savestate end');break;}
@@ -155,8 +161,11 @@ export async function importSavestate(source:SnapshotSource):Promise<Savestate> 
           const bytes=metadata.length===1?metadata[0]:new Uint8Array(metadataBytes);if(metadata.length>1){let p=0;for(const b of metadata){bytes.set(b,p);p+=b.length;}}
           const pair=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes),(_k,v:unknown)=>{
             if(v&&typeof v==='object'&&'$bgt' in v){const t=v as Tag;if(t.$bgt==='blob8'||t.$bgt==='blob32'){
-              if(t.id!==nextId++||!Number.isSafeInteger(t.bytes)||t.bytes!<0||t.bytes!>0xffffffff||t.$bgt==='blob32'&&t.bytes!%4)throw new Error('Invalid savestate blob descriptor');
-              blobs.set(t.id,{tag:t,at:0});return t;
+              if(!Number.isSafeInteger(t.id)||!Number.isSafeInteger(t.bytes)||t.bytes!<0||t.bytes!>0xffffffff||t.$bgt==='blob32'&&t.bytes!%4)throw new Error('Invalid savestate blob descriptor');
+              const earlier=blobs.get(t.id!);
+              if(earlier){if(version<3||t.$bgt!==earlier.tag.$bgt||t.bytes!==earlier.tag.bytes)throw new Error('Conflicting savestate blob reference');}
+              else {if(t.id!==nextId++)throw new Error('Invalid savestate blob ID');blobs.set(t.id,{tag:t,at:0});}
+              return t;
             }}return revive(v);
           }) as [string,unknown];
           if(!Array.isArray(pair)||pair.length!==2||typeof pair[0]!=='string'||Object.hasOwn(state,pair[0]))throw new Error('Invalid savestate section');

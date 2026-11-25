@@ -3,7 +3,7 @@
 // and pixel helpers.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { test as base, expect, Page, Route, TestInfo } from '@playwright/test';
+import { test as base, expect, Page, Route, TestInfo, type Request, type Response } from '@playwright/test';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 import { assertWebGPUAvailable, webGPUWasAvailable } from './webgpu-availability';
 import { suspensionCapabilities } from '../../bgt/runtime/jspi';
@@ -24,6 +24,8 @@ export interface Collector {
   allow(...patterns: AllowEntry[]): void;
   /** K73: the explicit allowlist for intentional network-level request failures (same entry forms). */
   allowRequestFailure(...patterns: AllowEntry[]): void;
+  /** Navigate to a new HTTP document, intentionally abandoning this exact in-flight request (K76). */
+  navigateAway(url: string, request: Request): Promise<Response | null>;
 }
 
 export interface Pixels {
@@ -47,6 +49,10 @@ export const test = base.extend<Fixtures>({
   backendParam: ['webgl2', { option: true }],
   collector: async ({ page }, use, testInfo) => {
     const allowed: AllowEntry[] = [], allowedFailures: AllowEntry[] = [];
+    type Departure = { committed: boolean; cancellation?: string };
+    const inFlight = new WeakSet<Request>();
+    const departures = new WeakMap<Request, Departure>();
+    let leaving: Departure | undefined;
     const c: Collector = {
       consoleErrors: [],
       consoleWarnings: [],
@@ -56,6 +62,23 @@ export const test = base.extend<Fixtures>({
       navigationAborts: [],
       allow: (...p) => { validateAllow(p); allowed.push(...p); },
       allowRequestFailure: (...p) => { validateAllow(p); allowedFailures.push(...p); },
+      navigateAway: async (url, request) => {
+        if (leaving || !inFlight.has(request) || request.isNavigationRequest() || departures.has(request))
+          throw new Error('navigateAway requires one in-flight subresource request not already abandoned');
+        const attempt: Departure = { committed: false };
+        leaving = attempt;
+        departures.set(request, attempt);
+        try {
+          const response = await page.goto(url, { waitUntil: 'commit' });
+          attempt.committed = response !== null; // same-document navigation has no response
+          return response;
+        } finally {
+          leaving = undefined;
+          if (!attempt.committed) departures.delete(request);
+          if (attempt.cancellation)
+            (attempt.committed ? c.navigationAborts : c.requestFailures).push(attempt.cancellation);
+        }
+      },
     };
     page.on('console', (m) => {
       if (m.type() === 'error') c.consoleErrors.push(m.text());
@@ -65,16 +88,19 @@ export const test = base.extend<Fixtures>({
     page.on('response', (r) => {
       if (r.status() >= 400) c.failedRequests.push(`${r.status()} ${r.url()}`);
     });
-    // K73: network-level failures. A cancellation of a request issued before the main frame's latest navigation is
-    // the navigation's doing (the old document's in-flight loads), not a failure.
-    let navigations = 0;
-    const startedAt = new WeakMap<object, number>();
-    page.on('request', (r) => startedAt.set(r, navigations));
-    page.on('framenavigated', (f) => { if (f === page.mainFrame()) navigations++; });
+    page.on('request', r => inFlight.add(r));
+    page.on('requestfinished', r => { inFlight.delete(r); departures.delete(r); });
     page.on('requestfailed', (r) => {
+      inFlight.delete(r);
+      const attempt = departures.get(r);
+      departures.delete(r);
       const error = r.failure()?.errorText ?? 'unknown', line = `${error} ${r.method()} ${r.url()}`;
-      const navigated = (startedAt.get(r) ?? navigations) < navigations;
-      (navigated && isCancellation(error) ? c.navigationAborts : c.requestFailures).push(line);
+      // The events don't establish causality: WebKit reports 'cancelled' before the next navigation request,
+      // AbortController gives the same text, and framenavigated includes history/hash changes. Don't infer
+      // abandonment from event order; an explicitly registered request may report before or after commit.
+      if (!attempt || !isCancellation(error)) c.requestFailures.push(line);
+      else if (attempt.committed) c.navigationAborts.push(line);
+      else attempt.cancellation = line;
     });
     await use(c);
     try {
@@ -87,6 +113,7 @@ export const test = base.extend<Fixtures>({
       }
     } catch { /* deliberate unavailable-runtime tests may have no API */ }
     const problems = unexpected(c, allowed, allowedFailures);
+    if (leaving?.cancellation) problems.requestFailures.push(leaving.cancellation);
     await testInfo.attach('browser-log.json', { body: JSON.stringify({ ...c, allow: undefined, allowRequestFailure: undefined }, null, 2), contentType: 'application/json' });
     expect(problems, 'unexpected JS exceptions, console errors, failed requests (HTTP >= 400) or network request failures')
       .toEqual({ pageErrors: [], consoleErrors: [], failedRequests: [], requestFailures: [] });

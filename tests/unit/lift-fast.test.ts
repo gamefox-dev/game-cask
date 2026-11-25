@@ -4,83 +4,20 @@
 // clock: X.tsc and the quantum's frame_insns). EFLAGS at a frame end are not compared (fast mode treats them as dead
 // across calls/returns per the Win64 ABI); K75: the EFLAGS a profile call observes are (see the observed-flags test).
 import { it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { ROOT } from '../support/headless';
 import { jspiApi } from '../../bgt/runtime/jspi';
 // @ts-expect-error plain ESM
 import { liftPolicy, liftPolicyArgs } from '../../tools/build/chunks.mjs';
-// @ts-expect-error plain ESM
-import { CFLAGS, LDFLAGS, WASM_OPT_FEATURES } from '../../tools/build/build.mjs';
-// @ts-expect-error plain ESM
-import { requireZig } from '../../tools/build/toolchain.mjs';
-// @ts-expect-error plain ESM
-import { transform } from '../../tools/build/asyncify.mjs';
-// @ts-expect-error plain ESM
-import { functionNames } from '../../tools/build/wasm-names.mjs';
-import { instantiateFixture } from '../support/wasm-fixture';
+import { fastHarness } from '../support/fast-harness';
 import { perTestTool } from '../support/per-test-tool';
 // @ts-expect-error plain ESM
 import { x86tool, refuseTestCorruptPort } from '../../tools/build/pipeline.mjs';
 const tool = perTestTool(x86tool);
 const modes = ['asyncify', ...(jspiApi() ? ['jspi'] : [])] as ('asyncify' | 'jspi')[];
 
-function pe(code: Buffer, cuts: number[]) {
-  const b = Buffer.alloc(0x400 + Math.ceil(code.length / 512) * 512);
-  b.write('MZ'); b.writeUInt32LE(0x80, 0x3c); b.write('PE\0\0', 0x80); b.writeUInt16LE(0x8664, 0x84); b.writeUInt16LE(2, 0x86); b.writeUInt16LE(240, 0x94); b.writeUInt16LE(0x20b, 0x98);
-  b.writeUInt32LE(0x1000, 0xa8); b.writeBigUInt64LE(0x1000n, 0xb0); b.writeUInt32LE(0x10000, 0xd0); b.writeUInt32LE(0x200, 0xd4); b.writeUInt32LE(0x200, 0x98 + 112 + 24); b.writeUInt32LE(cuts.length * 12, 0x98 + 116 + 24);
-  for (const [i, name, rva, size, raw] of [[0, '.text', 0x1000, code.length, 0x400], [1, '.pdata', 0x200, cuts.length * 12, 0x200]] as const) {
-    const s = 0x188 + i * 40; b.write(name, s); b.writeUInt32LE(size, s + 8); b.writeUInt32LE(rva, s + 12); b.writeUInt32LE(size, s + 16); b.writeUInt32LE(raw, s + 20); b.writeUInt32LE(i ? 0x40000040 : 0x60000020, s + 36);
-  }
-  cuts.forEach((off, i) => { b.writeUInt32LE(0x1000 + off, 0x200 + i * 12); b.writeUInt32LE(0x1000 + (cuts[i + 1] ?? code.length), 0x204 + i * 12); });
-  code.copy(b, 0x400); return b;
-}
-function lift(code: Buffer, cuts: number[], args: string[]) {
-  const root = join(ROOT, 'node_modules/.cache/bgt/lift-fast'); mkdirSync(root, { recursive: true });
-  const dir = mkdtempSync(join(root, 'case-'));
-  try {
-    writeFileSync(join(dir, 'test.exe'), pe(code, cuts));
-    execFileSync(tool(), ['lift', join(dir, 'test.exe'), '--base', '1000', '--name', 'probe', '--out', join(dir, 'lifted.c'), ...args], { stdio: 'pipe' });
-    return readFileSync(join(dir, 'lifted.c'), 'utf8');
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-}
-async function harness(code: Buffer, cuts: number[], args: string[], suspension?: 'asyncify' | 'jspi') {
-  const root = join(ROOT, 'node_modules/.cache/bgt/lift-fast'); mkdirSync(root, { recursive: true });
-  const dir = mkdtempSync(join(root, 'run-'));
-  try {
-    const text = lift(code, cuts, args);
-    const defines = ['X86_ACCOUNTING_ENABLED=1', 'X86_NATIVE_STATS=1', 'X86_FLAT_GUEST=1', 'X86_FLAT_BYTES=65536ull', 'X86_PROFILE_ENABLED=0', 'X86_COVERAGE_MODE=0'];
-    writeFileSync(join(dir, 'test.c'), defines.map((d) => '#define ' + d.replace('=', ' ')).join('\n') + '\nstatic const unsigned char test_code[]={' + [...code].join(',') + '};\n' +
-      text.replace('#include "x86_lift64.h"', '#include "' + ROOT + '/platforms/x86/x86_lift64.h"') + '\n#include "' + ROOT + '/tests/fixtures/c/native_calls_harness.h"\n');
-    const out = join(dir, 'raw.wasm');
-    execFileSync(requireZig({ quiet: true }).path, ['cc', ...CFLAGS, ...defines.map((d) => '-D' + d), '-I', join(ROOT, 'bgt/include'), '-I', join(ROOT, 'platforms/x86'),
-      join(dir, 'test.c'), join(ROOT, 'bgt/sdk/bgt_libc.c'), ...LDFLAGS.filter((f: string) => f !== '-Wl,--strip-debug'), '-o', out], { stdio: 'pipe' });
-    let raw = new Uint8Array(readFileSync(out));
-    if (suspension === 'asyncify') {
-      const linked = new Set(functionNames(raw).map((n: { name: string }) => n.name));
-      const names = [...text.matchAll(/void (N_[0-9a-f]+)\(uint32_t pc\)\{/g)].map((m) => m[1]).filter((n) => linked.has(n));
-      transform(out, join(dir, 'async.wasm'), [...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
-        ...(names.length ? ['--pass-arg=asyncify-removelist@' + names.join(',')] : [])]);
-      raw = new Uint8Array(readFileSync(join(dir, 'async.wasm')));
-    }
-    const { exports, host } = await instantiateFixture(raw, suspension ? { suspensionMode: suspension } : {});
-    const ex = exports as unknown as { memory: WebAssembly.Memory; prepare(i: number, pc: number, b: number): void; execute(): void; resume(): void; cpu(): number; ram(): number;
-      interpretation(): number; generic(): number; set_reg(i: number, v: bigint): void; configure_service(n: number): void; service_count(): number; service_complete(): number; retired(): bigint;
-      service_flag(i: number): number; frame_insns(): number; tsc(): bigint; state_hash(parts: number): number; poke_backing(addr: number, v: number): void; page_mapped(addr: number): number };
-    const view = () => new DataView(ex.memory.buffer);
-    const eip = () => view().getUint32(ex.cpu() + 128, true);
-    /* Run to the sentinel return, resuming after every scheduler transfer. */
-    const run = (interpreted: number, budget: number, setup?: () => void) => {
-      ex.prepare(interpreted, 0x2000, budget); setup?.(); ex.execute();
-      for (let n = 0; n < 64 && eip() !== 0xfffffff4; n++) ex.resume();
-      expect(eip()).toBe(0xfffffff4);
-      return { regs: new Uint8Array(ex.memory.buffer).slice(ex.cpu(), ex.cpu() + 128), ram: new Uint8Array(ex.memory.buffer).slice(ex.ram() + 0x1000, ex.ram() + 0xa000), retired: ex.retired(),
-        clock: { tsc: ex.tsc(), frame: ex.frame_insns() } };
-    };
-    return { ex, host, text, run };
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-}
+const { lift, harness } = fastHarness(tool);
 // Caller makes two tiny calls; callee clobbers r12 and recurses 100 deep with RET $16-style cleanup.
 function recursive() {
   const code = Buffer.alloc(0x90, 0x90);

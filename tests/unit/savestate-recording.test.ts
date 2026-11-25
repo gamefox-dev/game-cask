@@ -2,14 +2,33 @@
 import {it,expect} from 'vitest';
 import {Frame} from '../../bgt/runtime/commands';
 import {GPU_OP as O} from '../../bgt/runtime/abi';
+import {attachSharedWrite,sharedWriteFor} from '../../bgt/runtime/shared-buffers';
 import {recordCheckpointFrame,restoreCheckpointFrame,checkpointFrameBytes} from '../../bgt/runtime/savestate-recording';
 it('retains failure outcomes when materializing a new compact base',()=>{
  const f=new Frame();f.reset(4,4);
  f.items=[{kind:'gpu',op:O.SHADER_CREATE,words:[1,1,2,0,4,81],source:'bad shader',executeCode:-8,completeCode:-8} as typeof f.items[number]];
  const first=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
- const compact=recordCheckpointFrame(restoreCheckpointFrame(first),first.letterbox,1,4,4,false);
+ const compact=recordCheckpointFrame(restoreCheckpointFrame(first),first.letterbox,1,4,4);
+ expect((compact.vertices as Uint8Array).buffer.byteLength).toBe(0);
  expect(compact.items[0].executeCode).toBe(-8);expect(compact.items[0].completeCode).toBe(-8);
  expect(compact.items).toEqual(first.items);
+});
+it('does not pin decoder buffer stores across create/delete churn',()=>{
+ const f=new Frame(), owner={};f.reset(4,4);
+ for(let i=0;i<4;i++){
+  const store=new Uint8Array(1<<20), data=new Uint8Array([1,2,3,4]);
+  const create={kind:'gpu' as const,op:O.BUFFER_CREATE,words:[1,1,store.length,0,0]};
+  const update={kind:'gpu' as const,op:O.BUFFER_UPDATE,words:[1,0,0,4],data};
+  const copy={kind:'gpu' as const,op:O.BUFFER_COPY,words:[1,1,0,4,4]};
+  for(const cmd of [create,update,copy])attachSharedWrite(cmd,{store,data,offset:0,applied:true},owner);
+  f.items.push(create,update,copy,{kind:'gpu',op:O.BUFFER_DELETE,words:[1]});
+ }
+ const record=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
+ expect(record.items).toEqual(f.items);
+ for(let i=0;i<f.items.length;i++)if(i%4!==3){
+  expect(sharedWriteFor(f.items[i],owner)?.store.byteLength).toBe(1<<20);
+  expect(sharedWriteFor(record.items[i],owner)).toBeUndefined();
+ }
 });
 it.each([1,2,3,4,5,6,7])('normalizes upload offset %i before every replay typed view',offset=>{
  const backing=new Uint8Array(64);const data=new Uint8Array(backing.buffer,offset,16);data.forEach((_,i)=>data[i]=i+1);

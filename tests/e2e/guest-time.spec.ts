@@ -16,19 +16,23 @@ for(const suspension of ['asyncify','jspi'])test('guest-frame clock and worker a
   expect(hashes[9]).not.toBe(hashes[0]);
   const result=await page.evaluate(async()=>{
     const t=(window as any).__BGT_TEST__;
-    if(t.diagnostics().suspension==='jspi') {
-      try {await t.snapshot();return {unsupported:false};} catch(e) {return {unsupported:String(e).includes('suspended JSPI')};}
+    // K77: JSPI checkpoints work at returnable presentation boundaries; a live native JSPI wait refuses with its documented error.
+    let snap;
+    try {snap=await t.snapshot();} catch(e) {
+      if(t.diagnostics().suspension==='jspi')return {unsupported:String(e).includes('suspended JSPI'),equal:null};
+      throw e;
     }
-    const snap=await t.snapshot(),runs=[];
+    const runs=[];
     for(let run=0;run<3;run++) {
       if(run)await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(snap)):snap);
       const trace=[];
       for(let i=0;i<30;i++) {await t.step(1);trace.push([t.stateHash(),t.diagnostics().metrics.guest_time]);}
       runs.push(trace);
     }
-    return {unsupported:null,equal:JSON.stringify(runs[0])===JSON.stringify(runs[1])&&JSON.stringify(runs[0])===JSON.stringify(runs[2])};
+    return {unsupported:false,equal:JSON.stringify(runs[0])===JSON.stringify(runs[1])&&JSON.stringify(runs[0])===JSON.stringify(runs[2])};
   });
-  if(suspension==='jspi')expect(result.unsupported).toBe(true);else expect(result.equal).toBe(true);
+  // Either a supported checkpoint whose restored suffixes are identical, or (JSPI only) the documented refusal.
+  if(result.unsupported)expect(suspension).toBe('jspi');else expect(result.equal).toBe(true);
   await step(page,50);
   const d=await diagnostics(page);
   expect((d.metrics as any).exited).toBe(1);expect(d.errors).toEqual([]);expect(d.commandErrors.count).toBe(0);

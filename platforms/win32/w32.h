@@ -46,6 +46,8 @@ int32_t w32_boot(const w32_config_t *cfg, bgt_io_t *io);
 double w32_guest_time_us(void); /* read-only, independent of host update count */
 /* bgt_update: runs the guest; blocks (bgt_yield) inside the guest's message loop */
 void w32_update(void);
+void w32_enable_checkpoint_boundaries(void);
+uint32_t w32_checkpoint_parked(void);
 /* bgt_render: flushes deferred GDI drawing and presents the desktop */
 void w32_render(void);
 void w32_guest_present(int swap);

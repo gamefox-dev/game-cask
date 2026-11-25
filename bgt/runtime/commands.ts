@@ -68,9 +68,15 @@ export class Frame {
   commandBytes = 0;
   gpuUploadBytes = 0;
   gpuVertices = 0;
-  private buf = new ArrayBuffer(65536 * VERTEX_FLOATS * 4);
-  f32 = new Float32Array(this.buf);
-  u32 = new Uint32Array(this.buf);
+  private buf: ArrayBuffer;
+  f32: Float32Array<ArrayBuffer>;
+  u32: Uint32Array<ArrayBuffer>;
+
+  constructor(vertexCapacity=65536) {
+    this.buf=new ArrayBuffer(vertexCapacity * VERTEX_FLOATS * 4);
+    this.f32=new Float32Array(this.buf);
+    this.u32=new Uint32Array(this.buf);
+  }
 
   reset(logicalW: number, logicalH: number): void {
     this.logicalW = logicalW;
@@ -94,7 +100,7 @@ export class Frame {
     const need = this.vertexCount + n;
     if (need + this.gpuVertices > LIMITS.verticesPerFrame) return false;
     if (need * VERTEX_FLOATS > this.f32.length) {
-      let cap = this.f32.length / VERTEX_FLOATS;
+      let cap = Math.max(1,this.f32.length / VERTEX_FLOATS);
       while (cap < need) cap *= 2;
       const next = new ArrayBuffer(Math.min(cap, LIMITS.verticesPerFrame) * VERTEX_FLOATS * 4);
       new Uint8Array(next).set(new Uint8Array(this.buf, 0, this.vertexCount * VERTEX_FLOATS * 4));

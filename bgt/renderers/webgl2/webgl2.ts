@@ -6,7 +6,7 @@ import {
 } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
 import { WebGL2Gpu } from './gpu';
-import type { CheckpointSurfaces } from '../checkpoint-surfaces';
+import type { CheckpointRenderer, CheckpointSurfaces } from '../checkpoint-surfaces';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const VS = `#version 300 es
@@ -464,7 +464,10 @@ export class WebGL2Renderer implements Renderer {
     return out;
   }
 
-  declare captureTestSurfaces: (letterbox: Letterbox) => Promise<CheckpointSurfaces>;
+  declare checkpointIndices: CheckpointRenderer['checkpointIndices'];
+  declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];
+  declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
+  declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];
   declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {

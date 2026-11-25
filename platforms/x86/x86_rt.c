@@ -187,6 +187,36 @@ static inline int xf_abnormal(uint32_t next) {
 }
 __attribute__((noinline)) int xf_leave(uint32_t next) { x86_fast_depth--; return xf_abnormal(next); }
 __attribute__((noinline)) int xf_check(uint32_t next) { return xf_abnormal(next); }
+/* K78 liftFast.check "sync" reporter (see x86_guest.h). Cold: a check build calls it only on a violation. */
+x86_sync_check_t x86_sync_check;
+static uint32_t sync_put(char *b, uint32_t n, uint32_t cap, const char *s) { while (*s && n + 1 < cap) b[n++] = *s++; return n; }
+static uint32_t sync_hex(char *b, uint32_t n, uint32_t cap, uint64_t v, int digits) {
+    if (digits > 0) n = sync_put(b, n, cap, "0x"); else digits = -digits;
+    for (int i = digits - 1; i >= 0 && n + 1 < cap; i--) b[n++] = "0123456789abcdef"[(v >> (i * 4)) & 15u];
+    return n;
+}
+__attribute__((noinline, cold)) void xf_sync_violation(uint32_t kind_reg, uint32_t owner, uint32_t fn, uint32_t pc, uint32_t callee, uint64_t got, uint64_t want) {
+    uint32_t kind = kind_reg >> 8, reg = kind_reg & 255u;
+    if (kind >= X86_SYNC_KINDS) kind = 0;
+    if (!x86_sync_check.violations++) {
+        x86_sync_check.first_kind = kind; x86_sync_check.first_reg = reg; x86_sync_check.first_owner = owner; x86_sync_check.first_fn = fn;
+        x86_sync_check.first_pc = pc; x86_sync_check.first_callee = callee; x86_sync_check.first_got = got; x86_sync_check.first_want = want;
+    }
+    x86_sync_check.by_kind[kind]++;
+    uint32_t key = (pc << 7) ^ (kind << 4) ^ reg;
+    if (x86_sync_check.logged >= 8) return;
+    for (uint32_t i = 0; i < x86_sync_check.logged; i++) if (x86_sync_check.seen[i] == key) return;
+    x86_sync_check.seen[x86_sync_check.logged++] = key;
+    char b[320]; uint32_t n = 0;
+    n = sync_put(b, n, sizeof b, "x86 sync check: "); n = sync_put(b, n, sizeof b, x86_sync_kind_name(kind));
+    n = sync_put(b, n, sizeof b, ": register "); n = sync_put(b, n, sizeof b, x86_reg64_name(reg));
+    n = sync_put(b, n, sizeof b, " at guest pc "); n = sync_hex(b, n, sizeof b, pc, 8);
+    n = sync_put(b, n, sizeof b, " in guest function "); n = sync_hex(b, n, sizeof b, fn, 8);
+    n = sync_put(b, n, sizeof b, " (lifted N_"); n = sync_hex(b, n, sizeof b, owner, -8); n = sync_put(b, n, sizeof b, ")");
+    if (callee) { n = sync_put(b, n, sizeof b, ", callee "); n = sync_hex(b, n, sizeof b, callee, 8); }
+    if (kind == 1 || kind == 3 || kind == 4) { n = sync_put(b, n, sizeof b, ", found "); n = sync_hex(b, n, sizeof b, got, 16); n = sync_put(b, n, sizeof b, ", full form "); n = sync_hex(b, n, sizeof b, want, 16); }
+    bgt_log(BGT_LOG_WARN, b, n);
+}
 void x86_fast_exec(const x86_insn_t *in) {
     x86_fast_inline++;
     x86_exec_one(in);
@@ -896,12 +926,26 @@ static void invoke_inner(uint32_t target, uint32_t ret_addr) {
     interp_until(ret_addr, esp_floor);
 }
 
+/* Only this *outer* flat dispatch may return at a checkpoint. Nested x86_invoke
+ * (including callbacks and pending generic CALLs) still owns a native continuation. */
+static int checkpoint_dispatch;
+int x86_checkpoint_can_return(void) {
+    return checkpoint_dispatch && !X.callback_depth && !X.transfer && !x86_native_live;
+}
+void x86_checkpoint_dispatch(uint32_t stop, uint32_t floor) {
+    checkpoint_dispatch = 1;
+    interp_until(stop, floor);
+    checkpoint_dispatch = 0;
+}
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
+    int outer = checkpoint_dispatch;
+    if (outer) checkpoint_dispatch = 0;
     double start=0,*span=exclusive_pause(&start);
     int active=interpreter_span_set(0);
     invoke_inner(target,ret_addr);
     interpreter_span_set(active);
     exclusive_resume(span,start);
+    if (outer) checkpoint_dispatch = outer;
 }
 
 void x86_call(uint32_t target, uint32_t next) {
