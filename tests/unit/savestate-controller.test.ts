@@ -176,7 +176,7 @@ it.each([false,true])('recovers after GPU byte pressure with a surviving legacy 
   expect(snapshot.gpuBase?.frame.items.find(i=>i.kind==='texUpdate')?.data).not.toEqual(shadow);
 });
 
-it.each(['rewrite','delete','repeated writes'])('backs off failed live readback and handles texture %s',async action=>{
+it.each(['rewrite','delete','repeated writes','repeated name reuse'])('backs off failed live readback and handles texture %s',async action=>{
   const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
   const frame=new Frame();frame.reset(4,4);
   const cmd=(op:number,words:number[]):GpuItem=>({kind:'gpu',op,words});
@@ -194,9 +194,12 @@ it.each(['rewrite','delete','repeated writes'])('backs off failed live readback 
   await step(1,[cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,10,3]),...Array.from({length:8},()=>clear).flat()]);
   expect(states.journalStats().error).toMatch(/non-finite GPU texture checkpoint/);
   expect(readback).toHaveBeenCalledOnce();
-  const repeated=action==='repeated writes';
+  const reuse=action==='repeated name reuse', repeated=reuse||action==='repeated writes';
   const write=[cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,1,0,1,0,0,0,0]),cmd(GPU_OP.PASS_END,[])];
-  for(let update=2;update<=32;update++)await step(update,repeated?write:clear);
+  for(let update=2;update<=32;update++){
+    const create=update%2?cmd(GPU_OP.TEXTURE_CREATE,[1,4,4,1,10,3]):cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,10,3]);
+    await step(update,reuse?[cmd(GPU_OP.TEXTURE_DELETE,[1]),create,...write]:repeated?write:clear);
+  }
   expect(readback).toHaveBeenCalledTimes(repeated?2:1); // unrelated writes never wake; repeated writes wake once
   await step(33,[]);
   expect(readback).toHaveBeenCalledTimes(repeated?3:2);

@@ -248,16 +248,19 @@ export class GPUReadbackFailure extends Error {
   // texels. A target pass matters only if it clears or issues a write there.
   changed(frame:CheckpointFrame):'delete'|'write'|undefined {
     const {op,handle}=this;
-    let attached=false, wrote=false;
+    let attached=false, wrote=false, deleted=false;
     for(const i of frame.items) {
       if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
       const [h]=i.words;
       if(op===O.BUFFER_READBACK) {
-        if(h===handle&&i.op===O.BUFFER_DELETE)return 'delete';
+        if(h===handle&&i.op===O.BUFFER_DELETE)deleted=true;
+        if(h===handle&&i.op===O.BUFFER_CREATE){deleted=false;wrote=true;}
         if(h===handle&&i.op===O.BUFFER_UPDATE||i.op===O.BUFFER_COPY&&i.words[2]===handle)wrote=true;
       } else if(op===O.TEXTURE_READBACK) {
         switch(i.op) {
-          case O.TEXTURE_DELETE:if(h===handle)return 'delete';break;
+          case O.TEXTURE_DELETE:if(h===handle)deleted=true;break;
+          case O.TEXTURE_CREATE:case O.TEXTURE_CREATE_EX:
+            if(h===handle){deleted=false;wrote=true;}break;
           case O.TEXTURE_UPDATE:case O.TEXTURE_UPDATE_EX:case O.TEXTURE_GENERATE_MIPS:
             if(h===handle)wrote=true;break;
           case O.BLIT:if(i.words[2]===handle)wrote=true;break;
@@ -274,7 +277,9 @@ export class GPUReadbackFailure extends Error {
         }
       }
     }
-    return wrote?'write':undefined;
+    // Deletion only bypasses the write throttle if the name is still absent
+    // at the cut. Replacing it gives one early retry, just like rewriting it.
+    return deleted?'delete':wrote?'write':undefined;
   }
 }
 
