@@ -24,5 +24,7 @@ export interface CheckpointRenderer {
   checkpointStorageBytes?(): number;
   inspectTestSurfaces(): CheckpointInspection;
   captureTestSurfaces(letterbox: Letterbox, shadows: CheckpointShadows): Promise<CheckpointSurfaces>;
+  /** Read native RGBA8 upload-order bytes without drawing/presenting another frame. */
+  readTestLegacyTarget(handle:number,width:number,height:number): Promise<Uint8Array<ArrayBuffer>>;
   restoreTestSurfaces(state: CheckpointSurfaces): void;
 }

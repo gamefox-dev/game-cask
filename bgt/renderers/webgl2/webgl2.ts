@@ -95,7 +95,7 @@ export class WebGL2Renderer implements Renderer {
   private targets = new Map<number, { fbo: WebGLFramebuffer; w: number; h: number }>();
   private samplers: WebGLSampler[] = [];
   private white!: WebGLTexture;
-  private snapshot?: { texture: WebGLTexture; fbo: WebGLFramebuffer; w: number; h: number; lb: Letterbox };
+  private snapshot?: { texture: WebGLTexture; fbo: WebGLFramebuffer; w: number; h: number; lb: Letterbox; retained: boolean };
   private textures = new Map<number, WebGLTexture>();
   private lostCbs: Array<(r: string) => void> = [];
   private restoredCbs: Array<() => void> = [];
@@ -277,7 +277,7 @@ export class WebGL2Renderer implements Renderer {
     } else if (mode === BLEND_MULTIPLY) gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
   }
 
-  drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Pixels | null {
+  drawFrame(frame: Frame, lb: Letterbox, readback: boolean, retainPixels = false): Pixels | null {
     if (this.lost) {
       for (const it of frame.items) {
         if (it.kind === 'readback') it.complete();
@@ -332,7 +332,7 @@ export class WebGL2Renderer implements Renderer {
     };
     bindTarget(0);
 
-    if (this.snapshot) {
+    if (this.snapshot?.retained) {
       const old = this.snapshot.lb;
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.snapshot.fbo);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null); gl.disable(gl.SCISSOR_TEST);
@@ -429,15 +429,20 @@ export class WebGL2Renderer implements Renderer {
     bindTarget(0);
     // Retain the final physical image, including any legacy draws after a GPU pass.
     // Win32 guests submit in update: repeated paused captures must not erase their screen.
-    if (frame.items.length && (this.snapshot || frame.items.some(it => it.kind === 'gpu'))) {
+    // For legacy-only checkpointing, save the output without loading it in the next frame.
+    const saved = this.snapshot;
+    const retained = !!saved?.retained || frame.items.some(it => it.kind === 'gpu');
+    const moved = retainPixels && (!saved || saved.w !== this.canvas.width || saved.h !== H ||
+      saved.lb.x !== lb.x || saved.lb.y !== lb.y || saved.lb.w !== lb.w || saved.lb.h !== lb.h);
+    if ((retained && frame.items.length) || (retainPixels && (!retained || moved))) {
       if (this.snapshot?.w !== this.canvas.width || this.snapshot.h !== H) {
         if (this.snapshot) { gl.deleteTexture(this.snapshot.texture); gl.deleteFramebuffer(this.snapshot.fbo); }
         const texture = this.makeTexture(this.canvas.width, H), fbo = gl.createFramebuffer()!;
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-        this.snapshot = { texture, fbo, w: this.canvas.width, h: H, lb: { ...lb } };
+        this.snapshot = { texture, fbo, w: this.canvas.width, h: H, lb, retained };
       }
-      this.snapshot.lb = { ...lb };
+      this.snapshot.lb = { ...lb }; this.snapshot.retained = retained;
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.snapshot.fbo); gl.disable(gl.SCISSOR_TEST);
       gl.blitFramebuffer(0, 0, this.canvas.width, H, 0, 0, this.canvas.width, H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -468,6 +473,7 @@ export class WebGL2Renderer implements Renderer {
   declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];
   declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
   declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];
+  declare readTestLegacyTarget: CheckpointRenderer['readTestLegacyTarget'];
   declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {

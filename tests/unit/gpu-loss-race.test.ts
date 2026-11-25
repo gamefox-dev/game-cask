@@ -32,6 +32,20 @@ it('simulated loss marks unavailable synchronously, preserves queued GPU work an
   expect(runtime.newCanvas).not.toHaveBeenCalled();
 });
 
+it('destroys WebGPU RGBA readback staging even if device loss rejects the map', async () => {
+  const reason=new Error('device lost while mapping');
+  const buffer={mapAsync:vi.fn().mockRejectedValue(reason),destroy:vi.fn()};
+  const device={createBuffer:vi.fn(()=>buffer),createCommandEncoder:()=>({copyTextureToBuffer:()=>{},finish:()=>({})}),
+    queue:{submit:()=>{}}};
+  const renderer:WebGPURenderer=Object.assign(Object.create(WebGPURenderer.prototype),{o:{device}});
+  vi.stubGlobal('GPUBufferUsage',{COPY_DST:8,MAP_READ:1});vi.stubGlobal('GPUMapMode',{READ:1});
+  try {
+    await expect(renderer['readback']({width:2,height:2} as GPUTexture)).rejects.toBe(reason);
+    expect(device.createBuffer).toHaveBeenCalledWith({size:512,usage:9});
+    expect(buffer.destroy).toHaveBeenCalledOnce();
+  } finally {vi.unstubAllGlobals();}
+});
+
 it('loss occurring while an asynchronous render is in flight retains the unconsumed command frame', async () => {
   const frame = { items: [{ kind: 'gpu' }], vertexCount: 0, commandBytes: 0, submits: 0 };
   const renderer: any = { lost: false, drawFrame: vi.fn(async () => { renderer.lost = true; return null; }), stats: {} };

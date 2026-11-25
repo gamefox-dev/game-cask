@@ -4,8 +4,24 @@ import {Frame,VERTEX_FLOATS,type FrameItem} from './commands';
 import {GPU_OP as O,LIMITS} from './abi';
 import type {RecordedFrame} from '../renderers/recording';
 import {decodeBytes} from '../renderers/recording';
-import type {Letterbox,Renderer} from '../renderers/types';
+import type {GpuItem,Letterbox,Renderer} from '../renderers/types';
 export type CheckpointFrame=Omit<RecordedFrame,'vertices'> & {vertices:string|Uint8Array<ArrayBuffer>;packedConstants?:[number,[number|null,number|null][]][]};
+type CommandOutcome = {executeCode?:number;completeCode?:number};
+type CheckpointShader = GpuItem & CommandOutcome & Record<string,unknown>;
+const liveShaders = new WeakSet<object>();
+function checkpointShaderDescriptor(i:Record<string,unknown>): CheckpointShader {
+  const words=Array.isArray(i.words)?[...i.words]:[];
+  if(words.length!==6||!words.every(w=>Number.isInteger(w)&&w>=0&&w<=0xffffffff)||typeof i.source!=='string')
+    throw new Error('Invalid recorded shader descriptor');
+  return {kind:'gpu',op:O.SHADER_CREATE,words,source:i.source,
+    ...(typeof i.executeCode==='number'?{executeCode:i.executeCode}:{}),
+    ...(typeof i.completeCode==='number'?{completeCode:i.completeCode}:{})};
+}
+export function shaderForCut(record:Record<string,unknown>): CheckpointShader {
+  // A trusted live record has no attachments and may still receive its numeric
+  // outcomes. Imported/cloned records can only contribute a clean descriptor.
+  return liveShaders.has(record) ? record as CheckpointShader : checkpointShaderDescriptor(record);
+}
 export function recordsMutation(item:FrameItem):boolean {return item.kind!=='readback'&&!(item.kind==='gpu'&&(item.op===O.TEXTURE_READBACK||item.op===O.BUFFER_READBACK));}
 export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:number,width:number,height:number):CheckpointFrame {
   return {type:'frame',update,width,height,logicalW:frame.logicalW,logicalH:frame.logicalH,letterbox:{...letterbox},
@@ -13,7 +29,13 @@ export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:num
       // Observation results already live in the host request checkpoint. Replay must not issue them.
       if(!recordsMutation(item))return [];
       if(item.kind==='gpu'){
-        const outcome=item as typeof item & {executeCode?:number;completeCode?:number};
+        const outcome=item as typeof item & CommandOutcome;
+        if(item.op===O.SHADER_CREATE) {
+          const shader=checkpointShaderDescriptor({words:item.words,source:item.source,
+            executeCode:outcome.executeCode,completeCode:outcome.completeCode});
+          liveShaders.add(shader);
+          return [shader];
+        }
         // K74 keys the decoder's buffer store on the original words object.
         const words=(item.op===O.BUFFER_CREATE||item.op===O.BUFFER_UPDATE||item.op===O.BUFFER_COPY)?item.words.slice():item.words;
         return [{kind:'gpu',op:item.op,words,...(item.data?{data:item.data}:{}),...(item.source!==undefined?{source:item.source}:{}),
@@ -56,9 +78,24 @@ function alignedUpload(data:Uint8Array):Uint8Array<ArrayBuffer>{
 }
 export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
   return record.items.map(i=>{
+    // WebGPU keeps shader items after execution. Rebuild just the descriptor,
+    // not arbitrary payloads/properties that an imported frame may carry.
+    if(i.kind==='gpu'&&i.op===O.SHADER_CREATE)return checkpointShaderDescriptor(i);
     const data=typeof i.data==='string'?decodeBytes(i.data):i.data instanceof Uint8Array?alignedUpload(i.data):undefined;
     return {...i,...(data===undefined?{}:{data}),...(i.kind==='readback'?{complete:()=>{}}:{})};
   }) as FrameItem[];
+}
+// WebGPU keeps shader items for their source and descriptor, even on failure.
+// A pending callback must not close over the frame (and all its uploads), and
+// a completed shader no longer needs the callback or its promise at all.
+function replayShader(item:GpuItem,expected:number|undefined):Promise<void> {
+  return new Promise((resolve,reject)=>{
+    item.complete=(code,log)=>{
+      delete item.complete;
+      if(code!==(expected??0))reject(new Error(log||'Shader replay outcome changed'));
+      else resolve();
+    };
+  });
 }
 /** Checkpoint replay deliberately excludes FrameReplay's inspection/base64 machinery. */
 export class CheckpointReplay {
@@ -84,17 +121,14 @@ export class CheckpointReplay {
   stop():void {this.active=false;this.unwrap?.();this.unwrap=undefined;}
   async draw(record:CheckpointFrame, finish = true):Promise<void>{
     const frame=restoreCheckpointFrame(record),pending:Promise<void>[]=[];
-    frame.items.forEach((item,i)=>{
-      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(new Promise<void>((resolve,reject)=>{
-        item.complete=(code,log)=>{const expected=record.items[i].completeCode;
-          if(typeof expected==='number'?code!==expected:!!code)reject(new Error(log||'Shader replay outcome changed'));else resolve();};
-      }));
+    frame.items.forEach(item=>{
+      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(replayShader(item,(item as GpuItem & {completeCode?:number}).completeCode));
       if(item.kind==='readback')item.complete=()=>{};
       if(item.kind==='gpu'&&(item.op===O.BUFFER_READBACK||item.op===O.TEXTURE_READBACK))item.readback=()=>{};
     });
     if(this.renderer.canvas.width!==record.width||this.renderer.canvas.height!==record.height)this.renderer.resize(record.width,record.height);
     const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-    await this.renderer.drawFrame(frame,record.letterbox,false);
+    await this.renderer.drawFrame(frame,record.letterbox,false,true);
     // Native work is ordered within one renderer/queue. Shader completions are
     // still checked before replay can proceed; other frames need no GPU fence.
     if(finish||pending.length)await this.renderer.finish();

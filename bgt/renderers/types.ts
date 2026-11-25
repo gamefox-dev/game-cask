@@ -122,7 +122,8 @@ export interface Renderer {
   /** Resize backing store (device px). */
   resize(width: number, height: number): void;
   /** Execute one frame. If `readback`, return the canvas pixels after drawing. */
-  drawFrame(frame: Frame, letterbox: Letterbox, readback: boolean): Promise<Pixels | null> | Pixels | null;
+  /** retainPixels is opt-in for checkpoints, which may read the frame after browser presentation. */
+  drawFrame(frame: Frame, letterbox: Letterbox, readback: boolean, retainPixels?: boolean): Promise<Pixels | null> | Pixels | null;
   /** Resolve once submitted GPU work has completed. */
   finish(): Promise<void>;
   /** K74 (Q137): bytes of renderer-owned presentation textures outside the executor (the retained canvas snapshot). */

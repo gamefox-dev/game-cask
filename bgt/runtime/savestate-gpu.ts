@@ -2,10 +2,10 @@
 // A base at a frame boundary + <=2 updates of original commands preserves dependencies,
 // including resources deleted/reused later in the suffix. No end-of-suffix shadows.
 import { GPU_OP as O } from './abi';
-import { Frame, type FrameItem } from './commands';
+import { Frame, type FrameItem, type TextureEntry } from './commands';
 import { TEXEL_BYTES, canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
-import {recordCheckpointFrame,CheckpointReplay,checkpointFrameBytes,type CheckpointFrame} from './savestate-recording';
-import { GPUByteLimit, ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, textureReadbackStagingBytes } from './savestate-budget';
+import {recordCheckpointFrame,CheckpointReplay,checkpointFrameBytes,shaderForCut,type CheckpointFrame} from './savestate-recording';
+import { GPUByteLimit, ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, replayShaderBytes, textureReadbackStagingBytes } from './savestate-budget';
 import { cloneCheckpoint } from './savestate-clone';
 import { decodeBytes } from '../renderers/recording';
 import type { Renderer, GpuItem } from '../renderers/types';
@@ -49,7 +49,8 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
   for (const record of records) {
    // Provenance never consumes the upload bytes. Don't decode/realign them
    // here, before the replay workspace preflight.
-   for (const item of record.items as unknown as FrameItem[]) {
+   for (const recorded of record.items) {
+    const item=recorded as unknown as FrameItem;
     // Failed creations reserve failed shader/pipeline objects; failed mutations have no effect.
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
@@ -58,6 +59,10 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
     if (item.kind === 'texDelete') r.legacy.delete(item.handle);
     if (item.kind === 'texUpdate'&&!metadataOnly) r.legacy.get(item.handle)!.updates.push(item);
     if (item.kind !== 'gpu') continue;
+    if(item.op===O.SHADER_CREATE) {
+      const shader=shaderForCut(recorded);
+      r.shaders.set(shader.words[0],shader);continue;
+    }
     const {op,words:w}=canonicalize(item.op,item.words), h=w[0], it={...item,op,words:w};
     switch(op) {
       case O.BUFFER_CREATE:delete it.data;r.buffers.set(h,it);break;
@@ -74,9 +79,6 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
       case O.TEXTURE_DELETE:r.textures.delete(h);break;
       case O.SAMPLER_CREATE_EX:r.samplers.set(h,it);break;
       case O.SAMPLER_DELETE:r.samplers.delete(h);break;
-      // Shader completion may still be in flight when entering metadata-only
-      // mode. Keep the actual record so its eventual outcome isn't lost.
-      case O.SHADER_CREATE:r.shaders.set(h,item);break;
       case O.SHADER_DELETE:r.shaders.delete(h);break;
       case O.PIPELINE_CREATE:r.pipelines.set(h,it);break;
       case O.PIPELINE_DELETE:r.pipelines.delete(h);r.feedback.delete(h);break;
@@ -206,7 +208,7 @@ export class ReplayCursor {
       if(i.kind==='texCreate')set(this.legacy,Number(i.handle),Number(i.width)*Number(i.height)*4+256);
       if(i.kind==='texDelete')set(this.legacy,Number(i.handle),0);
       if(i.kind==='gpu'&&Array.isArray(i.words)) {
-        if(i.op===O.SHADER_CREATE)set(this.shaders,i.words[0],96+String(i.source??'').length*2);
+        if(i.op===O.SHADER_CREATE)set(this.shaders,i.words[0],replayShaderBytes(i));
         if(i.op===O.SHADER_DELETE)set(this.shaders,i.words[0],0);
       }
     }
@@ -240,7 +242,7 @@ type ReplayFactory=()=>Promise<{cursor:ReplayCursor;atBase:boolean}>;
 type CheckpointSource=Renderer & CheckpointRenderer;
 
 export class GPUReadbackFailure extends Error {
-  constructor(cause:unknown,readonly live:boolean,readonly op?:number,readonly handle?:number) {
+  constructor(cause:unknown,readonly live:boolean,readonly op?:number|'legacyTarget',readonly handle?:number) {
     super(cause instanceof Error?cause.message:String(cause),{cause});
   }
 
@@ -248,16 +250,28 @@ export class GPUReadbackFailure extends Error {
   // texels. A target pass matters only if it clears or issues a write there.
   changed(frame:CheckpointFrame):'delete'|'write'|undefined {
     const {op,handle}=this;
-    let attached=false, wrote=false;
+    let attached=false, wrote=false, deleted=false;
     for(const i of frame.items) {
+      if(op==='legacyTarget') {
+        if(i.handle===handle) {
+          if(i.kind==='texDelete')deleted=true;
+          if(i.kind==='texCreate'){deleted=false;wrote=true;}
+          if(i.kind==='texUpdate')wrote=true;
+        }
+        if(i.kind==='draw'&&i.target===handle)wrote=true;
+        continue;
+      }
       if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
       const [h]=i.words;
       if(op===O.BUFFER_READBACK) {
-        if(h===handle&&i.op===O.BUFFER_DELETE)return 'delete';
+        if(h===handle&&i.op===O.BUFFER_DELETE)deleted=true;
+        if(h===handle&&i.op===O.BUFFER_CREATE){deleted=false;wrote=true;}
         if(h===handle&&i.op===O.BUFFER_UPDATE||i.op===O.BUFFER_COPY&&i.words[2]===handle)wrote=true;
       } else if(op===O.TEXTURE_READBACK) {
         switch(i.op) {
-          case O.TEXTURE_DELETE:if(h===handle)return 'delete';break;
+          case O.TEXTURE_DELETE:if(h===handle)deleted=true;break;
+          case O.TEXTURE_CREATE:case O.TEXTURE_CREATE_EX:
+            if(h===handle){deleted=false;wrote=true;}break;
           case O.TEXTURE_UPDATE:case O.TEXTURE_UPDATE_EX:case O.TEXTURE_GENERATE_MIPS:
             if(h===handle)wrote=true;break;
           case O.BLIT:if(i.words[2]===handle)wrote=true;break;
@@ -274,14 +288,16 @@ export class GPUReadbackFailure extends Error {
         }
       }
     }
-    return wrote?'write':undefined;
+    // Deletion only bypasses the write throttle if the name is still absent
+    // at the cut. Replacing it gives one early retry, just like rewriting it.
+    return deleted?'delete':wrote?'write':undefined;
   }
 }
 
 // Bounded, live-end-only recovery after the replay journal no longer fits.
-// No discarded pixel/vertex/upload bytes or renderer are held. Legacy textures
-// cannot be rebuilt from this recipe; their deletion/replacement or restoring
-// an earlier snapshot is required. Packed aspects still need exact constants.
+// No discarded pixel/vertex/upload bytes or renderer are held. At a live cut,
+// legacy static pixels come from the host's existing texture shadows, and
+// legacy render targets are read natively. Packed aspects still need constants.
 export class LiveGPUCut {
   private r=emptyResources();
   constructor(base:GPUCheckpoint|null, journal:CheckpointFrame[]) {
@@ -296,10 +312,9 @@ export class LiveGPUCut {
     for(const t of r.textures.values())n+=256+32*t.constants.length+16*t.exactUploads.size;
     return n;
   }
-  async capture(live:CheckpointSource, at:CheckpointFrame, check:CaptureCheck) {
-    if(this.r.legacy.size)throw new Error('Savestate live recovery requires deletion of legacy textures');
+  async capture(live:CheckpointSource, at:CheckpointFrame, check:CaptureCheck, legacyShadows:ReadonlyMap<number,TextureEntry>|undefined) {
     checkResidual(this.r,[]);
-    return captureCut(this.r,at,[],live,undefined,check,0,0);
+    return captureCut(this.r,at,[],live,undefined,check,0,0,0,{legacyShadows});
   }
 }
 
@@ -328,12 +343,16 @@ export async function compactGPU(getReplay:ReplayFactory, base: GPUCheckpoint | 
     } catch(e) {failure=e;continue;}
     const at=prefix.at(-1)??base?.frame??journal[0];
     const replayStart=performance.now(),provenanceMs=replayStart-proofAt;
-    const legacyTargets=[...r.legacy.values()].some(t=>t.item.renderTarget);
     let cursor:ReplayCursor|undefined;
     try {
-      if(i!==journal.length||legacyTargets){
+      if(i!==journal.length){
         const state=await getReplay();cursor=state.cursor;
-        await advanceReplay(cursor,state.atBase?null:base,prefix,extra=>check(0,extra,tail,false));
+        const preflight=(extra:number)=>check(0,extra,tail,false);
+        if(!base&&!prefix.length) {
+          // A cut before the first recorded frame has no retained image. Clear
+          // the detached renderer explicitly rather than reading a swap buffer.
+          await cursor.draw({...at,items:[],vertices:new Uint8Array(0)},preflight);
+        } else await advanceReplay(cursor,state.atBase?null:base,prefix,preflight);
       }
       return await captureCut(r,at,tail,cursor?.renderer??live,cursor,check,provenanceMs,cursor?performance.now()-replayStart:0,prefix.length);
     } catch(e) {
@@ -346,28 +365,27 @@ export async function compactGPU(getReplay:ReplayFactory, base: GPUCheckpoint | 
 }
 
 async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFrame[],source:CheckpointSource,
-    cursor:ReplayCursor|undefined,check:CaptureCheck,provenanceMs:number,replayMs:number,replayFrames=0) {
+    cursor:ReplayCursor|undefined,check:CaptureCheck,provenanceMs:number,replayMs:number,replayFrames:number,
+    recovery?:{legacyShadows:ReadonlyMap<number,TextureEntry>|undefined}) {
   const readAt=performance.now();
   const {shadows,lazy,pixelBytes,pixelStagingBytes}=source.inspectTestSurfaces();
   const textureShadows=new Map(shadows.textures.map(t=>[t.handle,t]));
   const exactUploads: [GpuItem,number,number][]=[];
   const fillLegacy:(()=>void)[]=[];
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
-  const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
+  const reads:GpuItem[]=[], legacyReads:(()=>Promise<void>)[]=[];
   const pending: Promise<void>[]=[];
-  let nativeBytes=pixelBytes,readbackBytes=pixelBytes,readBytes=0,legacyBytes=0,stagingBytes=pixelStagingBytes;
-  const read=(item: FrameItem, bytes:number, staging:number, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
+  let nativeBytes=pixelBytes,readbackBytes=pixelBytes,readBytes=0,legacyBytes=0,stagingBytes=pixelStagingBytes,legacyStagingBytes=0;
+  const read=(item: GpuItem, bytes:number, staging:number, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
     readBytes+=bytes;stagingBytes+=staging;
     pending.push(new Promise<void>((resolve,reject)=>{
-      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {
+      item.readback=(data,error) => {
         try {
           if(!data||error||data.length!==bytes)throw new Error('Savestate native readback failed: '+error);
           nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();
-        } catch(e) {reject(new GPUReadbackFailure(e,!cursor,item.kind==='gpu'?item.op:undefined,item.kind==='gpu'?item.words[0]:undefined));}
+        } catch(e) {reject(new GPUReadbackFailure(e,!cursor,item.op,item.words[0]));}
       };
-      if(item.kind==='gpu') item.readback=done;
-      else if(item.kind==='readback') item.complete=done;
-      reads.items.push(item);
+      reads.push(item);
     }));
   };
   for(const [h,b] of r.buffers) {
@@ -428,9 +446,25 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
     const {width:w,height:h,handle}=t.item, bytes=w*h*4;
     const update:Extract<FrameItem,{kind:'texUpdate'}>={kind:'texUpdate',handle,x:0,y:0,w,h,data:new Uint8Array(0)};
     frame.items.push(update);
-    if(t.item.renderTarget)read({kind:'readback',target:handle,x:0,y:0,w,h,complete:()=>{}},bytes,source.kind==='webgpu'?paddedReadbackBytes(w*4,h):bytes,data=>{update.data=data;});
-    else {
+    if(t.item.renderTarget) {
+      readBytes+=bytes;
+      if(source.kind==='webgpu')legacyStagingBytes=Math.max(legacyStagingBytes,paddedReadbackBytes(w*4,h));
+      legacyReads.push(async()=>{
+        try {
+          const data=await source.readTestLegacyTarget(handle,w,h);
+          if(data.length!==bytes)throw new Error('Savestate legacy target readback size changed: '+handle);
+          update.data=data;nativeBytes+=bytes;readbackBytes+=bytes;
+        } catch(e) {throw new GPUReadbackFailure(e,!cursor,'legacyTarget',handle);}
+      });
+    } else {
       legacyBytes+=bytes;nativeBytes+=bytes;
+      if(recovery) {
+        const entry=recovery.legacyShadows?.get(handle);
+        if(entry?.width!==w||entry.height!==h||entry.renderTarget||entry.shadow.length!==bytes)
+          throw new Error('Missing savestate legacy texture shadow '+handle);
+        fillLegacy.push(()=>{update.data=entry.shadow.slice();});
+        continue;
+      }
       for(const u of t.updates)if(typeof u.data==='string')stagingBytes=Math.max(stagingBytes,3*Math.ceil((u.data as string).length*3/4)+pixelStagingBytes);
       fillLegacy.push(()=>{
         const data=update.data=new Uint8Array(bytes);
@@ -444,31 +478,28 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
   frame.items.push(...r.samplers.values(),...r.shaders.values(),...r.pipelines.values(),...r.feedback.values());
   const packedConstants: CheckpointFrame['packedConstants']=[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants]);
   const pack=()=>({...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height),packedConstants});
-  const legacyTargets=[...r.legacy.values()].some(t=>t.item.renderTarget);
-  const keepReplay=!!cursor&&!legacyTargets;
+  const keepReplay=!!cursor;
   const planned=checkpointFrameBytes(pack())+checkpointShadowBytes(shadows,new Set())+pixelBytes+readBytes+legacyBytes;
-  check(planned,stagingBytes,residual,keepReplay);
+  check(planned,Math.max(stagingBytes,legacyStagingBytes),residual,keepReplay);
   const owned=cloneCheckpoint(shadows);
+  for(const fill of fillLegacy)fill();
   let surfaces:CheckpointSurfaces;
   try {surfaces=await source.captureTestSurfaces(at.letterbox,owned);}
   catch(e){throw new GPUReadbackFailure(e,!cursor);}
   const capturedTextures=new Map(surfaces.textures.map(t=>[t.handle,t]));
   for(const [update,h,mip] of exactUploads) update.data=mipShadow(capturedTextures.get(h),mip)!;
-  for(const fill of fillLegacy)fill();
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
   try {
-    if(legacyTargets)await source.drawFrame(reads,at.letterbox,false);
-    else for(const item of reads.items){
-      if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');
+    for(const item of reads){
       const code=source.gpu!.execute(item);if(code)item.readback?.(undefined,code);
     }
     await source.finish();
   } catch(e){throw new GPUReadbackFailure(e,!cursor);}
   const error=await done;if(error)throw error;
+  for(const readTarget of legacyReads)await readTarget();
   cursor?.replay.check();
   const readbackMs=performance.now()-readAt;
   const compact:GPUCheckpoint={nativeBytes,frame:pack(),surfaces};
-  // Legacy readFrame can present a redraw; don't reuse it as a pixel-exact cut.
   return {base:compact,journal:residual,keepReplay,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
     residualUpdates:new Set(residual.map(f=>f.update)).size,replayFrames:cursor?replayFrames:0,replayMs,readbackMs,readbackBytes,provenanceMs}};
 }

@@ -3,11 +3,38 @@ import {it,expect} from 'vitest';
 import {Frame} from '../../bgt/runtime/commands';
 import {GPU_OP as O} from '../../bgt/runtime/abi';
 import {recordFrame} from '../../bgt/renderers/recording';
-import {proveResidual} from '../../bgt/runtime/savestate-gpu';
+import {LiveGPUCut, proveResidual, type GPUCheckpoint} from '../../bgt/runtime/savestate-gpu';
+import {recordCheckpointFrame} from '../../bgt/runtime/savestate-recording';
 const f=(items:{op:number;words:number[];executeCode?:number}[])=>{
   const frame=new Frame();frame.reset(8,8);frame.items=items.map(x=>({kind:'gpu' as const,...x}));
   return recordFrame(frame,{x:0,y:0,w:8,h:8,scale:1},1,8,8);
 };
+it.each(['base','journal','append'])('live recovery drops imported shader attachments from %s',location=>{
+  const frame=new Frame();frame.reset(4,4);
+  const shader={kind:'gpu' as const,op:O.SHADER_CREATE,words:[1,1,0,0,0,9],source:'synthetic',executeCode:-6,completeCode:-6};
+  frame.items=[shader];
+  const lb={x:0,y:0,w:4,h:4,scale:1},record=recordCheckpointFrame(frame,lb,1,4,4);
+  const attachment=new Uint8Array(new ArrayBuffer(8193),1);
+  record.items[0]={...record.items[0],data:attachment,extra:{attachment}};
+  const base:GPUCheckpoint={frame:record,surfaces:{buffers:[],textures:[],retained:false,letterbox:lb,
+    physical:{width:4,height:4,data:new Uint8Array(64)}}};
+  const cut=new LiveGPUCut(location==='base'?base:null,location==='journal'?[record]:[]);
+  if(location==='append')cut.append(record);
+  expect(Object.keys(cut['r'].shaders.get(1)!).sort()).toEqual(Object.keys(shader).sort());
+  expect(cut['r'].shaders.get(1)).toEqual(shader);
+  expect(cut.bytes()).toBe(128+128+8*shader.words.length+2*shader.source.length);
+});
+
+it('keeps only the clean live shader record so a pending outcome reaches the cut',()=>{
+  const frame=new Frame();frame.reset(4,4);
+  frame.items=[{kind:'gpu',op:O.SHADER_CREATE,words:[1,1,0,0,0,9],source:'synthetic',
+    data:new Uint8Array(8192),complete:()=>{}}];
+  const record=recordCheckpointFrame(frame,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
+  const cut=new LiveGPUCut(null,[record]);
+  record.items[0].completeCode=-6; // the completion hook settles after the cut was created
+  expect(cut['r'].shaders.get(1)).toEqual({kind:'gpu',op:O.SHADER_CREATE,words:[1,1,0,0,0,9],source:'synthetic',completeCode:-6});
+});
+
 const create={op:O.TEXTURE_CREATE_EX,words:[7,0,8,8,1,3,5,3]};
 const pass=(depth=0,stencil=0)=>({op:O.PASS_BEGIN,words:[0,7,0,depth,stencil,0x3f000000,37]});
 const end={op:O.PASS_END,words:[]};

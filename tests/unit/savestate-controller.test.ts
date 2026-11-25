@@ -102,19 +102,21 @@ it('tries the consumed over-cap frame before dropping history',async()=>{
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(820);
 });
 
-it('tries an earlier cut when the live end is safe but its base cannot fit',async()=>{
+it.each([false,true])('tries an earlier cut when the live end cannot fit (has prefix: %s)',async hasPrefix=>{
   const {rt,states,renderer,lb}=harness({retained:700,workspace:8192});
-  const detached={...renderer,onError:()=>{},onLost:()=>{},resize:()=>{},drawFrame:async()=>null,
+  const drawFrame=vi.fn(async()=>null);
+  const detached={...renderer,onError:()=>{},onLost:()=>{},resize:()=>{},drawFrame,
     destroy:()=>{},gpu:{execute:()=>0}};
   vi.spyOn(states as unknown as {createRenderer: () => Promise<typeof detached>},'createRenderer').mockResolvedValue(detached);
   const frame=new Frame();frame.reset(4,4);
   const hooks=rt.testHarness!;
-  hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();
+  if(hasPrefix){hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();}
   frame.items=[{kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,1024,0,0]}];
   hooks.frame(frame,lb,2,4,4);await hooks.afterFrame!();
-  // Both cuts are logically safe. The latest needs 1024 readback bytes, so
-  // keep the smaller previous base plus the command that creates the buffer.
+  // The latest cut needs 1024 readback bytes. The smaller base keeps the
+  // buffer creation in the suffix, even if the base is before the first frame.
   await states.compactJournal();
+  expect(drawFrame).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({items:[]}),lb,false,true);
   expect(states.journalStats()).toMatchObject({frames:1,error:null});
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(700);
 });
@@ -136,7 +138,47 @@ it('recovers capture after an over-cap packed prefix once a live cut becomes pro
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(1500);
 });
 
-it.each(['rewrite','delete','repeated writes'])('backs off failed live readback and handles texture %s',async action=>{
+it.each([false,true])('recovers after GPU byte pressure with a surviving legacy texture (target=%s)',async renderTarget=>{
+  const budget={retained:1600,workspace:1700};
+  const {rt,states,renderer,lb}=harness(budget);
+  const frame=new Frame();frame.reset(4,4);
+  const step=async(update:number,items:typeof frame.items)=>{
+    frame.items=items;rt.testHarness!.frame(frame,lb,update,4,4);await rt.testHarness!.afterFrame!();
+  };
+  const shadow=Uint8Array.from({length:64},(_,i)=>i);
+  const native=new Uint8Array(64).fill(211);
+  const readTestLegacyTarget=vi.fn(async()=>native.slice());
+  const drawFrame=vi.fn();
+  Object.assign(renderer,{readTestLegacyTarget,drawFrame});
+  const host=rt.host=await GameHost.create(instrumentCheckpointWasm(await compileC('tests/fixtures/c/legacy_v02.c')),
+    {vfs:rt.vfs,log:()=>{},now:()=>0},
+    {backend:BACKEND_HEADLESS,caps:0,seed:1,arg0:0,arg1:0,displayWidth:4,displayHeight:4});
+  host.init();host.textures.entries.set(7,{width:4,height:4,renderTarget,shadow});host.textures.totalBytes=shadow.length;
+  // The input journal overflows workspace and the large live buffer would not
+  // fit in a base either. The legacy uploads are discarded with the journal.
+  await step(1,[{kind:'texCreate',handle:7,width:4,height:4,renderTarget},
+    {kind:'texUpdate',handle:7,x:0,y:0,w:4,h:4,data:shadow.slice()},
+    {kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,4096,0,0]},
+    ...Array.from({length:16},()=>({kind:'texUpdate' as const,handle:7,x:0,y:0,w:1,h:1,data:shadow.slice(0,4)}))]);
+  expect(states.journalStats()).toMatchObject({frames:0,error:expect.stringMatching(/bounded GPU capture workspace/)});
+  expect(renderer.captureTestSurfaces).not.toHaveBeenCalled();
+  await step(2,[]); // still too much live data for a compact base
+  expect(states.journalStats().error).not.toBeNull();
+  expect(renderer.captureTestSurfaces).not.toHaveBeenCalled();
+  await step(3,[{kind:'gpu',op:GPU_OP.BUFFER_DELETE,words:[1]}]);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(budget.retained);
+  expect(drawFrame).not.toHaveBeenCalled(); // a read-only cut must not redraw the live canvas
+  expect(readTestLegacyTarget).toHaveBeenCalledTimes(renderTarget?1:0);
+  const snapshot=await states.snapshot();
+  expect(snapshot.gpuBase?.frame.items.filter(i=>i.kind==='texUpdate')).toEqual([
+    expect.objectContaining({handle:7,data:renderTarget?native:shadow}),
+  ]);
+  shadow.fill(0);
+  expect(snapshot.gpuBase?.frame.items.find(i=>i.kind==='texUpdate')?.data).not.toEqual(shadow);
+});
+
+it.each(['rewrite','delete','repeated writes','repeated name reuse'])('backs off failed live readback and handles texture %s',async action=>{
   const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
   const frame=new Frame();frame.reset(4,4);
   const cmd=(op:number,words:number[]):GpuItem=>({kind:'gpu',op,words});
@@ -154,9 +196,12 @@ it.each(['rewrite','delete','repeated writes'])('backs off failed live readback 
   await step(1,[cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,10,3]),...Array.from({length:8},()=>clear).flat()]);
   expect(states.journalStats().error).toMatch(/non-finite GPU texture checkpoint/);
   expect(readback).toHaveBeenCalledOnce();
-  const repeated=action==='repeated writes';
+  const reuse=action==='repeated name reuse', repeated=reuse||action==='repeated writes';
   const write=[cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,1,0,1,0,0,0,0]),cmd(GPU_OP.PASS_END,[])];
-  for(let update=2;update<=32;update++)await step(update,repeated?write:clear);
+  for(let update=2;update<=32;update++){
+    const create=update%2?cmd(GPU_OP.TEXTURE_CREATE,[1,4,4,1,10,3]):cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,10,3]);
+    await step(update,reuse?[cmd(GPU_OP.TEXTURE_DELETE,[1]),create,...write]:repeated?write:clear);
+  }
   expect(readback).toHaveBeenCalledTimes(repeated?2:1); // unrelated writes never wake; repeated writes wake once
   await step(33,[]);
   expect(readback).toHaveBeenCalledTimes(repeated?3:2);
@@ -166,6 +211,32 @@ it.each(['rewrite','delete','repeated writes'])('backs off failed live readback 
   await step(34,action==='rewrite'?[{...cmd(GPU_OP.TEXTURE_UPDATE_EX,[1,0,0,0,0,4,4,1,1,64]),data}]:[cmd(GPU_OP.TEXTURE_DELETE,[1])]);
   expect(readback).toHaveBeenCalledTimes(action==='delete'?2:3);
   expect(renderer.captureTestSurfaces).toHaveBeenCalledTimes(repeated?4:3);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+});
+
+it('keys the readback cooldown to the failed legacy target across delete and recreate',async()=>{
+  const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
+  const readTestLegacyTarget=vi.fn(async(handle:number,_w:number,_h:number)=>{
+    if(handle===7)throw new Error('unreadable legacy target');
+    return new Uint8Array(64);
+  });
+  const failedReads=()=>readTestLegacyTarget.mock.calls.filter(([handle])=>handle===7).length;
+  Object.assign(renderer,{readTestLegacyTarget});
+  const frame=new Frame();frame.reset(4,4);
+  const step=async(update:number,items:typeof frame.items)=>{
+    frame.items=items;rt.testHarness!.frame(frame,lb,update,4,4);await rt.testHarness!.afterFrame!();
+  };
+  const create=(handle:number)=>({kind:'texCreate' as const,handle,width:4,height:4,renderTarget:true});
+  const remove=(handle:number)=>({kind:'texDelete' as const,handle});
+  const upload={kind:'texUpdate' as const,handle:7,x:0,y:0,w:1,h:1,data:new Uint8Array(4)};
+  await step(1,[create(7),create(8),...Array(16).fill(upload)]); // force an over-cap live cut
+  expect(states.journalStats().error).toMatch(/unreadable legacy target/);
+  expect(readTestLegacyTarget).toHaveBeenCalledExactlyOnceWith(7,4,4);
+  for(let update=2;update<=8;update++)await step(update,[remove(7),create(7),upload]);
+  expect(failedReads()).toBe(2); // one retry, not one per replacement
+  await step(9,[remove(8)]); // an unrelated deletion must not reset the cooldown either
+  expect(failedReads()).toBe(2);
+  await step(10,[remove(7)]);
   expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
 });
 

@@ -75,15 +75,19 @@ entropy or audio admission may behave differently in ordinary play; do not claim
   released/gamepad/pointer/touch/event state, deterministic clock/entropy/audio/storage.
 - An opt-in ordered **renderer-input journal from startup**, including uploads, shaders, buffers,
   texture/VAO/pipeline/FBO equivalents, copies, draws, render-to-texture/depth/stencil and deletion.
-  Snapshots materialize a compact live-resource base in a temporary same-backend renderer,
-  reading actual safe GPU contents at the residual START, not stale upload shadows or the
-  suffix end. Restore rebuilds that base and bounded residual in a fresh renderer, then swaps
-  the host/renderer. Guest updates/initialization are not replayed. Native buffer data and its
+  Snapshots materialize a compact live-resource base at a proven cut, reading actual GPU
+  contents at the residual START (from the live renderer for an end cut, or an isolated
+  same-backend replay for an earlier cut). Restore rebuilds that base and bounded residual in a
+  fresh renderer, then swaps the host/renderer. Guest updates/initialization are not replayed. Native buffer data and its
   separate CPU validation/repacking shadow are both preserved, as are texture upload/mipmap
-  recovery metadata (never replaced by rendered native contents). Physical retained screen and
-  (WebGPU) logical screen are transferred separately, along with legacy render targets.
+  recovery metadata (never replaced by rendered native contents). The physical image comes from
+  retained native pixels, not the canvas drawing buffer that the browser can discard after presentation.
+  In checkpoint mode, legacy-only frames keep a GPU copy without feeding it into the next draw.
+  WebGPU's logical screen and legacy render targets are transferred separately.
   Completion callbacks are replaced with replay-local plumbing; original request results come from
-  the checkpoint, never from replay into the original request table.
+  the checkpoint, never from replay into the original request table. Settled replay shader callbacks
+  are released. Replay and live recovery keep and charge shader descriptors and sources, not imported
+  attachments.
 
 Restore work is bounded by **live resources plus at most two updates / 100,000 residual commands**,
 not route length. Packed depth-stencil has no portable exact WebGPU readback. Exact per-mip,
@@ -106,19 +110,22 @@ The opt-in recorder rolls the journal at 128 recorded frames, 128 MiB of estimat
 50,000 commands, or sooner if another frame the size of the last would exceed retained capacity.
 This does work during lead-in steps, not normal play. Readback-safe
 end cuts use the live renderer. Packed depth/stencil cuts can advance an isolated renderer parked at the
-previous cut instead of re-uploading the compact base. Legacy render-target cuts still use a fresh replay.
-Native contents come from readback except where a full RGBA8 upload plus the subsequent command history proves
-the upload shadow exact. Rendering to the level, destination blits and mip generation invalidate that proof.
+previous cut instead of re-uploading the compact base. Native contents come from readback except where
+a full RGBA8 upload plus the subsequent command history proves the upload shadow exact. Rendering to
+the level, destination blits and mip generation invalidate that proof.
 
 An unsupported cut is retried after new frames. At **256 frames / 512 MiB / 200,000 commands** or the
 **1 GiB retained limit**, the recorder tries a safe cut with the just-consumed frame before dropping history.
 If no cut fits, capture fails closed with `Savestate GPU journal exceeded bounded history without a safe cut`;
 stepping still works and an earlier valid checkpoint can be restored. If a bounded resource/provenance
 recipe survives, capture also recovers at a later, in-budget live cut (for example after a full packed
-clear or deletion). This fallback cannot reconstruct discarded legacy texture uploads; it waits for those
-textures to be deleted. Explicit `compactJournal()` remains
-available before reaching that limit. Capture and restore still scale with live resource bytes and touched
-wasm pages; the bounds are not a wall-clock SLA. Stats split wasm/host capture, GPU proof/replay/readback,
+clear or deletion). Recovery copies current host shadows for static legacy textures and reads GPU-written
+legacy targets without presenting another frame. A failed live readback backs off; writes and same-frame
+replacement under the same name share an early retry, while actually removing the failed resource can
+retry immediately. Explicit `compactJournal()` remains available before reaching the journal limit.
+Capture and restore still scale with live resource bytes and touched wasm pages. The **3 GiB capture
+workspace limit** also accounts for overlapping history, staged copies and detached replay. Both byte limits
+are estimates, not total GPU/process memory or latency guarantees. Stats split wasm/host capture, GPU proof/replay/readback,
 and in-memory clone time. Streaming serialization is separate; artifact integrity hashing runs at boot, not capture.
 No private-game latency certification is implied.
 
@@ -184,7 +191,7 @@ the caller's checkpoint synchronously before its first await, so subsequent call
 
 The tagged JSON representation is debug-only: use `exportSnapshotDebugJson`/`importSnapshotDebugJson` for small diagnostics; it is capped at 8 MiB and retains exact u64 bigint values, float-global bit patterns, infinities, Maps/Sets, byte/key arrays and negative zero. It is not a public network protocol. Probe transfer reads and writes 1 MiB chunks and atomically renames a completed partial file.
 
-The recorder stores only resource mutations and required provenance, not readback observations or completion functions. It does no JSON/base64 accounting or periodic compaction during updates. `compactJournal()` is a test-only quiescent-boundary operation for long lead-ins; `journalStats()` reports growth and the 2 GiB fail-closed limit. Snapshot-time compaction remains exact and bounded by live resources plus two updates/100,000 residual commands. The GL-heavy CC0 profile in `tests/e2e/savestate-performance.spec.ts` reports deterministic/non-deterministic wall time, overhead and journal growth; these are local engineering measurements, not hardware or real-game certification.
+The recorder stores only resource mutations and required provenance, not readback observations or completion functions. It does no JSON/base64 accounting; it rolls history at consumed frame boundaries. `compactJournal()` is a test-only quiescent-boundary operation for long lead-ins; `journalStats()` reports journal and retained bytes and their limits. Snapshot-time compaction remains exact and bounded by live resources plus two updates/100,000 residual commands. The GL-heavy CC0 profile in `tests/e2e/savestate-performance.spec.ts` reports deterministic/non-deterministic wall time, overhead and journal growth; these are local engineering measurements, not hardware or real-game certification.
 
 Search always restores before each variant and in `finally`, including score/screenshot failures.
 Record the lead-in and winning input variant as an ordinary deterministic-mode full-route test too.

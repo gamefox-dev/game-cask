@@ -74,6 +74,11 @@ function vertexStoreBytes(kind:Renderer['kind'],bytes:number):number {
   return kind==='webgl2'||!bytes?bytes:2**Math.ceil(Math.log2(Math.max(1<<20,bytes)));
 }
 
+// Shader descriptors and source can outlive the input journal in a parked
+// renderer. Replay completion callbacks are released before a cursor parks.
+export function replayShaderBytes(item:Record<string,unknown>):number {
+  return 96+8*(Array.isArray(item.words)?item.words.length:0)+2*String(item.source??'').length;
+}
 // Budget the backing stores created inside a replay draw before executing it.
 // A post-frame census alone misses create/delete pairs and old+new mip stores.
 // Count deletions only at the next census (queued native work can still use them).
@@ -105,7 +110,7 @@ export class ReplayAllocations {
       let bytes=0;for(let mip=0;mip<mips;mip++)bytes+=level(t,mip);return bytes;
     };
     for(const i of f.items) {
-      const data=i.data;
+      const data=i.kind==='gpu'&&i.op===O.SHADER_CREATE?undefined:i.data;
       if(typeof data==='string'){const bytes=payloadLength(data);decoded+=bytes;staging=Math.max(staging,2*bytes);}
       else if(data instanceof Uint8Array&&((data.byteOffset&7)||!(data.buffer instanceof ArrayBuffer)))decoded+=data.byteLength;
       if(i.kind==='texCreate')allocations+=Number(i.width)*Number(i.height)*4+256;
@@ -210,7 +215,7 @@ export class ReplayAllocations {
           }
           break;
         }
-        case O.SHADER_CREATE:allocations+=96+String(i.source??'').length*2;break;
+        case O.SHADER_CREATE:allocations+=replayShaderBytes(i);break;
       }
     }
     return allocations+decoded+staging+this.draws.endFrame();
