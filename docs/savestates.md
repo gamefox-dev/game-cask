@@ -80,11 +80,14 @@ entropy or audio admission may behave differently in ordinary play; do not claim
   same-backend replay for an earlier cut). Restore rebuilds that base and bounded residual in a
   fresh renderer, then swaps the host/renderer. Guest updates/initialization are not replayed. Native buffer data and its
   separate CPU validation/repacking shadow are both preserved, as are texture upload/mipmap
-  recovery metadata (never replaced by rendered native contents). Physical retained screen and
-  (WebGPU) logical screen are transferred separately, along with legacy render targets.
+  recovery metadata (never replaced by rendered native contents). The physical image comes from
+  retained native pixels, not the canvas drawing buffer that the browser can discard after presentation.
+  In checkpoint mode, legacy-only frames keep a GPU copy without feeding it into the next draw.
+  WebGPU's logical screen and legacy render targets are transferred separately.
   Completion callbacks are replaced with replay-local plumbing; original request results come from
   the checkpoint, never from replay into the original request table. Settled replay shader callbacks
-  are released; the parked renderer's census charges the retained shader descriptors and sources.
+  are released. Replay and live recovery keep and charge shader descriptors and sources, not imported
+  attachments.
 
 Restore work is bounded by **live resources plus at most two updates / 100,000 residual commands**,
 not route length. Packed depth-stencil has no portable exact WebGPU readback. Exact per-mip,

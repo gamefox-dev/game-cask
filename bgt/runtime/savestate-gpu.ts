@@ -347,7 +347,12 @@ export async function compactGPU(getReplay:ReplayFactory, base: GPUCheckpoint | 
     try {
       if(i!==journal.length){
         const state=await getReplay();cursor=state.cursor;
-        await advanceReplay(cursor,state.atBase?null:base,prefix,extra=>check(0,extra,tail,false));
+        const preflight=(extra:number)=>check(0,extra,tail,false);
+        if(!base&&!prefix.length) {
+          // A cut before the first recorded frame has no retained image. Clear
+          // the detached renderer explicitly rather than reading a swap buffer.
+          await cursor.draw({...at,items:[],vertices:new Uint8Array(0)},preflight);
+        } else await advanceReplay(cursor,state.atBase?null:base,prefix,preflight);
       }
       return await captureCut(r,at,tail,cursor?.renderer??live,cursor,check,provenanceMs,cursor?performance.now()-replayStart:0,prefix.length);
     } catch(e) {

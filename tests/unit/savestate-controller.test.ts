@@ -102,19 +102,21 @@ it('tries the consumed over-cap frame before dropping history',async()=>{
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(820);
 });
 
-it('tries an earlier cut when the live end is safe but its base cannot fit',async()=>{
+it.each([false,true])('tries an earlier cut when the live end cannot fit (has prefix: %s)',async hasPrefix=>{
   const {rt,states,renderer,lb}=harness({retained:700,workspace:8192});
-  const detached={...renderer,onError:()=>{},onLost:()=>{},resize:()=>{},drawFrame:async()=>null,
+  const drawFrame=vi.fn(async()=>null);
+  const detached={...renderer,onError:()=>{},onLost:()=>{},resize:()=>{},drawFrame,
     destroy:()=>{},gpu:{execute:()=>0}};
   vi.spyOn(states as unknown as {createRenderer: () => Promise<typeof detached>},'createRenderer').mockResolvedValue(detached);
   const frame=new Frame();frame.reset(4,4);
   const hooks=rt.testHarness!;
-  hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();
+  if(hasPrefix){hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();}
   frame.items=[{kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,1024,0,0]}];
   hooks.frame(frame,lb,2,4,4);await hooks.afterFrame!();
-  // Both cuts are logically safe. The latest needs 1024 readback bytes, so
-  // keep the smaller previous base plus the command that creates the buffer.
+  // The latest cut needs 1024 readback bytes. The smaller base keeps the
+  // buffer creation in the suffix, even if the base is before the first frame.
   await states.compactJournal();
+  expect(drawFrame).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({items:[]}),lb,false,true);
   expect(states.journalStats()).toMatchObject({frames:1,error:null});
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(700);
 });

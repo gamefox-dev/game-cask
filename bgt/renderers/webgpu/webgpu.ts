@@ -236,6 +236,7 @@ export class WebGPURenderer implements Renderer {
       vbuf: null, vbufSize: 0, present };
     this.screen = undefined;
     this.snapshot = undefined;
+    this.snapshotLB = undefined;
     const queue = device.queue, rawSubmit = queue.submit.bind(queue);
     if (this.gpu) await this.gpu.restore(device);
     else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)), describeAdapter(this.adapter),
