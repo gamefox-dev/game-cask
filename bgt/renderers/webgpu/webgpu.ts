@@ -566,24 +566,24 @@ export class WebGPURenderer implements Renderer {
     const { device } = this.o;
     const bpr = Math.ceil((w * 4) / 256) * 256;
     const buf = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: tex, origin: {x,y} }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
-    device.queue.submit([enc.finish()]);
-    await buf.mapAsync(GPUMapMode.READ);
-    const src = new Uint8Array(buf.getMappedRange());
-    const data = new Uint8Array(w * h * 4);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const s = y * bpr + x * 4, d = (y * w + x) * 4;
-        data[d] = src[s + (bgra ? 2 : 0)];
-        data[d + 1] = src[s + 1];
-        data[d + 2] = src[s + (bgra ? 0 : 2)];
-        data[d + 3] = src[s + 3];
+    try {
+      const enc = device.createCommandEncoder();
+      enc.copyTextureToBuffer({ texture: tex, origin: {x,y} }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
+      device.queue.submit([enc.finish()]);
+      await buf.mapAsync(GPUMapMode.READ);
+      const src = new Uint8Array(buf.getMappedRange());
+      const data = new Uint8Array(w * h * 4);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const s = y * bpr + x * 4, d = (y * w + x) * 4;
+          data[d] = src[s + (bgra ? 2 : 0)];
+          data[d + 1] = src[s + 1];
+          data[d + 2] = src[s + (bgra ? 0 : 2)];
+          data[d + 3] = src[s + 3];
+        }
       }
-    }
-    buf.unmap();
-    buf.destroy();
-    return { width: w, height: h, data };
+      return { width: w, height: h, data };
+    } finally { buf.destroy(); } // Also unmaps, and releases staging when mapAsync rejects.
   }
 
   declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];

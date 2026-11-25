@@ -109,6 +109,8 @@ WebGL2Renderer.prototype.readTestLegacyTarget=async function(handle,width,height
   const previous=g.getParameter(g.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer|null;
   try {
     g.bindFramebuffer(g.READ_FRAMEBUFFER,target.fbo);
+    if(g.checkFramebufferStatus(g.READ_FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)
+      throw new Error('Unreadable savestate legacy target '+handle);
     const data=new Uint8Array(width*height*4);
     // Legacy GL draws invert Y for render targets: row zero is already the
     // first upload row, unlike a read of the canvas.
