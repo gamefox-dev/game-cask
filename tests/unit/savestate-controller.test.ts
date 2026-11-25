@@ -212,6 +212,32 @@ it.each(['rewrite','delete','repeated writes','repeated name reuse'])('backs off
   expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
 });
 
+it('keys the readback cooldown to the failed legacy target across delete and recreate',async()=>{
+  const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
+  const readTestLegacyTarget=vi.fn(async(handle:number,_w:number,_h:number)=>{
+    if(handle===7)throw new Error('unreadable legacy target');
+    return new Uint8Array(64);
+  });
+  const failedReads=()=>readTestLegacyTarget.mock.calls.filter(([handle])=>handle===7).length;
+  Object.assign(renderer,{readTestLegacyTarget});
+  const frame=new Frame();frame.reset(4,4);
+  const step=async(update:number,items:typeof frame.items)=>{
+    frame.items=items;rt.testHarness!.frame(frame,lb,update,4,4);await rt.testHarness!.afterFrame!();
+  };
+  const create=(handle:number)=>({kind:'texCreate' as const,handle,width:4,height:4,renderTarget:true});
+  const remove=(handle:number)=>({kind:'texDelete' as const,handle});
+  const upload={kind:'texUpdate' as const,handle:7,x:0,y:0,w:1,h:1,data:new Uint8Array(4)};
+  await step(1,[create(7),create(8),...Array(16).fill(upload)]); // force an over-cap live cut
+  expect(states.journalStats().error).toMatch(/unreadable legacy target/);
+  expect(readTestLegacyTarget).toHaveBeenCalledExactlyOnceWith(7,4,4);
+  for(let update=2;update<=8;update++)await step(update,[remove(7),create(7),upload]);
+  expect(failedReads()).toBe(2); // one retry, not one per replacement
+  await step(9,[remove(8)]); // an unrelated deletion must not reset the cooldown either
+  expect(failedReads()).toBe(2);
+  await step(10,[remove(7)]);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+});
+
 it('charges narrow WebGPU rows and both allocations in depth readback',()=>{
   const extent={width:1,height:64,depth:1};
   expect(paddedReadbackBytes(4,64)).toBe(16_384);

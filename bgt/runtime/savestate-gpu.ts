@@ -240,7 +240,7 @@ type ReplayFactory=()=>Promise<{cursor:ReplayCursor;atBase:boolean}>;
 type CheckpointSource=Renderer & CheckpointRenderer;
 
 export class GPUReadbackFailure extends Error {
-  constructor(cause:unknown,readonly live:boolean,readonly op?:number,readonly handle?:number) {
+  constructor(cause:unknown,readonly live:boolean,readonly op?:number|'legacyTarget',readonly handle?:number) {
     super(cause instanceof Error?cause.message:String(cause),{cause});
   }
 
@@ -250,6 +250,15 @@ export class GPUReadbackFailure extends Error {
     const {op,handle}=this;
     let attached=false, wrote=false, deleted=false;
     for(const i of frame.items) {
+      if(op==='legacyTarget') {
+        if(i.handle===handle) {
+          if(i.kind==='texDelete')deleted=true;
+          if(i.kind==='texCreate'){deleted=false;wrote=true;}
+          if(i.kind==='texUpdate')wrote=true;
+        }
+        if(i.kind==='draw'&&i.target===handle)wrote=true;
+        continue;
+      }
       if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
       const [h]=i.words;
       if(op===O.BUFFER_READBACK) {
@@ -434,9 +443,11 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
       readBytes+=bytes;
       if(source.kind==='webgpu')legacyStagingBytes=Math.max(legacyStagingBytes,paddedReadbackBytes(w*4,h));
       legacyReads.push(async()=>{
-        const data=await source.readTestLegacyTarget(handle,w,h);
-        if(data.length!==bytes)throw new Error('Savestate legacy target readback size changed: '+handle);
-        update.data=data;nativeBytes+=bytes;readbackBytes+=bytes;
+        try {
+          const data=await source.readTestLegacyTarget(handle,w,h);
+          if(data.length!==bytes)throw new Error('Savestate legacy target readback size changed: '+handle);
+          update.data=data;nativeBytes+=bytes;readbackBytes+=bytes;
+        } catch(e) {throw new GPUReadbackFailure(e,!cursor,'legacyTarget',handle);}
       });
     } else {
       legacyBytes+=bytes;nativeBytes+=bytes;
@@ -478,8 +489,7 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
     await source.finish();
   } catch(e){throw new GPUReadbackFailure(e,!cursor);}
   const error=await done;if(error)throw error;
-  try {for(const readTarget of legacyReads)await readTarget();}
-  catch(e){throw new GPUReadbackFailure(e,!cursor);}
+  for(const readTarget of legacyReads)await readTarget();
   cursor?.replay.check();
   const readbackMs=performance.now()-readAt;
   const compact:GPUCheckpoint={nativeBytes,frame:pack(),surfaces};
