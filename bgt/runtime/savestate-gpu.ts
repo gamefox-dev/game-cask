@@ -5,7 +5,7 @@ import { GPU_OP as O } from './abi';
 import { Frame, type FrameItem } from './commands';
 import { TEXEL_BYTES, canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
 import {recordCheckpointFrame,CheckpointReplay,checkpointFrameBytes,type CheckpointFrame} from './savestate-recording';
-import { GPUByteLimit, ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, textureReadbackStagingBytes } from './savestate-budget';
+import { GPUByteLimit, ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, replayShaderBytes, textureReadbackStagingBytes } from './savestate-budget';
 import { cloneCheckpoint } from './savestate-clone';
 import { decodeBytes } from '../renderers/recording';
 import type { Renderer, GpuItem } from '../renderers/types';
@@ -206,7 +206,7 @@ export class ReplayCursor {
       if(i.kind==='texCreate')set(this.legacy,Number(i.handle),Number(i.width)*Number(i.height)*4+256);
       if(i.kind==='texDelete')set(this.legacy,Number(i.handle),0);
       if(i.kind==='gpu'&&Array.isArray(i.words)) {
-        if(i.op===O.SHADER_CREATE)set(this.shaders,i.words[0],96+String(i.source??'').length*2);
+        if(i.op===O.SHADER_CREATE)set(this.shaders,i.words[0],replayShaderBytes(i));
         if(i.op===O.SHADER_DELETE)set(this.shaders,i.words[0],0);
       }
     }

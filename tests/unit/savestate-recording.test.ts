@@ -4,6 +4,9 @@ import {Frame} from '../../bgt/runtime/commands';
 import {GPU_OP as O} from '../../bgt/runtime/abi';
 import {attachSharedWrite,sharedWriteFor} from '../../bgt/runtime/shared-buffers';
 import {recordCheckpointFrame,restoreCheckpointFrame,checkpointFrameBytes} from '../../bgt/runtime/savestate-recording';
+import {ReplayCursor} from '../../bgt/runtime/savestate-gpu';
+import type {GpuItem,Renderer} from '../../bgt/renderers/types';
+import type {CheckpointRenderer} from '../../bgt/renderers/checkpoint-surfaces';
 it('retains failure outcomes when materializing a new compact base',()=>{
  const f=new Frame();f.reset(4,4);
  f.items=[{kind:'gpu',op:O.SHADER_CREATE,words:[1,1,2,0,4,81],source:'bad shader',executeCode:-8,completeCode:-8} as typeof f.items[number]];
@@ -57,4 +60,34 @@ it('retains owned decoder uploads without copies, copies reusable vertices, drop
  f.vertexBytes().fill(0);expect(Array.from(recorded.vertices as Uint8Array)).toEqual(Array(20).fill(173));
  expect(()=>structuredClone(recorded)).not.toThrow();expect(checkpointFrameBytes(recorded)).toBeGreaterThan(upload.length+20);
  const restored=restoreCheckpointFrame(recorded);expect(restored.items[0]).toEqual(f.items[0]);expect(restored.vertexBytes()).toEqual(recorded.vertices);
+});
+it.each([0,-6])('releases settled replay shader callbacks retained by WebGPU (outcome %i)',async expected=>{
+ const f=new Frame();f.reset(4,4);
+ f.items=[{kind:'gpu',op:O.SHADER_CREATE,words:[1,1,0,0,0,9],source:'synthetic',
+   ...(expected?{executeCode:expected,completeCode:expected}:{})} as GpuItem,
+  {kind:'gpu',op:O.BUFFER_CREATE,words:[2,1,4096,0,4096],data:new Uint8Array(4096)},
+  {kind:'gpu',op:O.BUFFER_DELETE,words:[2]}];
+ const record=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
+ // Model the successful and failed shader tables: keep only the shader item
+ // (not the disposable frame or its upload) after executing the commands.
+ const retained:GpuItem[]=[];
+ const renderer={kind:'webgpu',canvas:{width:4,height:4},onError:()=>{},onLost:()=>{},
+   gpu:{execute(item:GpuItem){
+     if(item.op!==O.SHADER_CREATE)return 0;
+     retained.push(item);
+     if(expected)item.complete!(expected,'synthetic failure');
+     return expected;
+   }},
+   async drawFrame(frame:Frame){for(const item of frame.items)if(item.kind==='gpu')this.gpu.execute(item);return null;},
+   async finish(){if(!expected)retained[0].complete!(0,'');}
+ };
+ const cursor=new ReplayCursor(renderer as unknown as Renderer & CheckpointRenderer);
+ const before=cursor.bytes();
+ await cursor.draw(record,()=>{});
+ expect(retained).toHaveLength(1);
+ expect(retained[0].complete).toBeUndefined();
+ expect(cursor.bytes()-before).toBe(96+8*retained[0].words.length+2*retained[0].source!.length);
+ f.items=[{kind:'gpu',op:O.SHADER_DELETE,words:[1]}];
+ await cursor.draw(recordCheckpointFrame(f,record.letterbox,2,4,4),()=>{},false);
+ expect(cursor.bytes()).toBe(before);
 });

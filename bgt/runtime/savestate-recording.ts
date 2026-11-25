@@ -4,7 +4,7 @@ import {Frame,VERTEX_FLOATS,type FrameItem} from './commands';
 import {GPU_OP as O,LIMITS} from './abi';
 import type {RecordedFrame} from '../renderers/recording';
 import {decodeBytes} from '../renderers/recording';
-import type {Letterbox,Renderer} from '../renderers/types';
+import type {GpuItem,Letterbox,Renderer} from '../renderers/types';
 export type CheckpointFrame=Omit<RecordedFrame,'vertices'> & {vertices:string|Uint8Array<ArrayBuffer>;packedConstants?:[number,[number|null,number|null][]][]};
 export function recordsMutation(item:FrameItem):boolean {return item.kind!=='readback'&&!(item.kind==='gpu'&&(item.op===O.TEXTURE_READBACK||item.op===O.BUFFER_READBACK));}
 export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:number,width:number,height:number):CheckpointFrame {
@@ -60,6 +60,18 @@ export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
     return {...i,...(data===undefined?{}:{data}),...(i.kind==='readback'?{complete:()=>{}}:{})};
   }) as FrameItem[];
 }
+// WebGPU keeps shader items for their source and descriptor, even on failure.
+// A pending callback must not close over the frame (and all its uploads), and
+// a completed shader no longer needs the callback or its promise at all.
+function replayShader(item:GpuItem,expected:unknown):Promise<void> {
+  return new Promise((resolve,reject)=>{
+    item.complete=(code,log)=>{
+      delete item.complete;
+      if(typeof expected==='number'?code!==expected:!!code)reject(new Error(log||'Shader replay outcome changed'));
+      else resolve();
+    };
+  });
+}
 /** Checkpoint replay deliberately excludes FrameReplay's inspection/base64 machinery. */
 export class CheckpointReplay {
   private error?:string;
@@ -85,10 +97,7 @@ export class CheckpointReplay {
   async draw(record:CheckpointFrame, finish = true):Promise<void>{
     const frame=restoreCheckpointFrame(record),pending:Promise<void>[]=[];
     frame.items.forEach((item,i)=>{
-      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(new Promise<void>((resolve,reject)=>{
-        item.complete=(code,log)=>{const expected=record.items[i].completeCode;
-          if(typeof expected==='number'?code!==expected:!!code)reject(new Error(log||'Shader replay outcome changed'));else resolve();};
-      }));
+      if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(replayShader(item,record.items[i].completeCode));
       if(item.kind==='readback')item.complete=()=>{};
       if(item.kind==='gpu'&&(item.op===O.BUFFER_READBACK||item.op===O.TEXTURE_READBACK))item.readback=()=>{};
     });

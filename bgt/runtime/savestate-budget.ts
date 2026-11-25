@@ -77,6 +77,11 @@ function vertexStoreBytes(kind:Renderer['kind'],bytes:number):number {
 // Budget the backing stores created inside a replay draw before executing it.
 // A post-frame census alone misses create/delete pairs and old+new mip stores.
 // Count deletions only at the next census (queued native work can still use them).
+// Shader descriptors and source can outlive the input journal in a parked
+// renderer. Replay completion callbacks are released before a cursor parks.
+export function replayShaderBytes(item:Record<string,unknown>):number {
+  return 96+8*(Array.isArray(item.words)?item.words.length:0)+2*String(item.source??'').length;
+}
 export class ReplayAllocations {
   private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean;generatedBytes:number}>();
   private draws: ReplayDrawAllocations;
@@ -210,7 +215,7 @@ export class ReplayAllocations {
           }
           break;
         }
-        case O.SHADER_CREATE:allocations+=96+String(i.source??'').length*2;break;
+        case O.SHADER_CREATE:allocations+=replayShaderBytes(i);break;
       }
     }
     return allocations+decoded+staging+this.draws.endFrame();
