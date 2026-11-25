@@ -589,6 +589,7 @@ export class WebGPURenderer implements Renderer {
   declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];
   declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
   declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];
+  declare readTestLegacyTarget: CheckpointRenderer['readTestLegacyTarget'];
   declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {

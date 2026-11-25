@@ -217,7 +217,7 @@ export class Savestates {
       const compact=await recovery.capture(live,frame,(base,staging)=>{
         checkGPUBytes(base,this.gpuBudget.retained,'retained history');
         checkGPUBytes(this.retainedBytes()+checkpointFrameBytes(frame)+base+staging,this.gpuBudget.workspace,'capture workspace');
-      });
+      },this.rt.host?.textures.entries);
       if(live.lost||live!==this.rt.renderer||this.rt['deviceResets'])return;
       this.gpuBase=compact.base;this.baseBytes=checkpointGPUBytes(this.gpuBase);
       this.recovery=undefined;this.journalError=null;this.retryAt=0;this.lastRollFailure='';

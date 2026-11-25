@@ -103,6 +103,25 @@ WebGPURenderer.prototype.checkpointStorageBytes=function(){
   return this['o'].vbufSize+(screen&&screen!==this.gpu['screen']?screen.width*screen.height*4:0)+36;
 };
 
+WebGL2Renderer.prototype.readTestLegacyTarget=async function(handle,width,height){
+  const g=this['gl'], target=this['targets'].get(handle);
+  if(!target||target.w!==width||target.h!==height)throw new Error('Missing savestate legacy target '+handle);
+  const previous=g.getParameter(g.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer|null;
+  try {
+    g.bindFramebuffer(g.READ_FRAMEBUFFER,target.fbo);
+    const data=new Uint8Array(width*height*4);
+    // Legacy GL draws invert Y for render targets: row zero is already the
+    // first upload row, unlike a read of the canvas.
+    g.readPixels(0,0,width,height,g.RGBA,g.UNSIGNED_BYTE,data);
+    return data;
+  } finally {g.bindFramebuffer(g.READ_FRAMEBUFFER,previous);}
+};
+WebGPURenderer.prototype.readTestLegacyTarget=async function(handle,width,height){
+  const tex=this['textures'].get(handle);
+  if(!tex||!this['targets'].has(handle)||tex.width!==width||tex.height!==height)throw new Error('Missing savestate legacy target '+handle);
+  return (await this['readback'](tex)).data;
+};
+
 WebGL2Renderer.prototype.inspectTestSurfaces=inspectWebGL2;
 WebGPURenderer.prototype.inspectTestSurfaces=inspectWebGPU;
 WebGL2Renderer.prototype.captureTestSurfaces=captureWebGL2Renderer;

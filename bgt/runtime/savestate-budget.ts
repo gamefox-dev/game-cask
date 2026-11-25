@@ -74,14 +74,14 @@ function vertexStoreBytes(kind:Renderer['kind'],bytes:number):number {
   return kind==='webgl2'||!bytes?bytes:2**Math.ceil(Math.log2(Math.max(1<<20,bytes)));
 }
 
-// Budget the backing stores created inside a replay draw before executing it.
-// A post-frame census alone misses create/delete pairs and old+new mip stores.
-// Count deletions only at the next census (queued native work can still use them).
 // Shader descriptors and source can outlive the input journal in a parked
 // renderer. Replay completion callbacks are released before a cursor parks.
 export function replayShaderBytes(item:Record<string,unknown>):number {
   return 96+8*(Array.isArray(item.words)?item.words.length:0)+2*String(item.source??'').length;
 }
+// Budget the backing stores created inside a replay draw before executing it.
+// A post-frame census alone misses create/delete pairs and old+new mip stores.
+// Count deletions only at the next census (queued native work can still use them).
 export class ReplayAllocations {
   private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean;generatedBytes:number}>();
   private draws: ReplayDrawAllocations;

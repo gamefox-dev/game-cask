@@ -136,6 +136,46 @@ it('recovers capture after an over-cap packed prefix once a live cut becomes pro
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(1500);
 });
 
+it.each([false,true])('recovers after GPU byte pressure with a surviving legacy texture (target=%s)',async renderTarget=>{
+  const budget={retained:1600,workspace:1700};
+  const {rt,states,renderer,lb}=harness(budget);
+  const frame=new Frame();frame.reset(4,4);
+  const step=async(update:number,items:typeof frame.items)=>{
+    frame.items=items;rt.testHarness!.frame(frame,lb,update,4,4);await rt.testHarness!.afterFrame!();
+  };
+  const shadow=Uint8Array.from({length:64},(_,i)=>i);
+  const native=new Uint8Array(64).fill(211);
+  const readTestLegacyTarget=vi.fn(async()=>native.slice());
+  const drawFrame=vi.fn();
+  Object.assign(renderer,{readTestLegacyTarget,drawFrame});
+  const host=rt.host=await GameHost.create(instrumentCheckpointWasm(await compileC('tests/fixtures/c/legacy_v02.c')),
+    {vfs:rt.vfs,log:()=>{},now:()=>0},
+    {backend:BACKEND_HEADLESS,caps:0,seed:1,arg0:0,arg1:0,displayWidth:4,displayHeight:4});
+  host.init();host.textures.entries.set(7,{width:4,height:4,renderTarget,shadow});host.textures.totalBytes=shadow.length;
+  // The input journal overflows workspace and the large live buffer would not
+  // fit in a base either. The legacy uploads are discarded with the journal.
+  await step(1,[{kind:'texCreate',handle:7,width:4,height:4,renderTarget},
+    {kind:'texUpdate',handle:7,x:0,y:0,w:4,h:4,data:shadow.slice()},
+    {kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,4096,0,0]},
+    ...Array.from({length:16},()=>({kind:'texUpdate' as const,handle:7,x:0,y:0,w:1,h:1,data:shadow.slice(0,4)}))]);
+  expect(states.journalStats()).toMatchObject({frames:0,error:expect.stringMatching(/bounded GPU capture workspace/)});
+  expect(renderer.captureTestSurfaces).not.toHaveBeenCalled();
+  await step(2,[]); // still too much live data for a compact base
+  expect(states.journalStats().error).not.toBeNull();
+  expect(renderer.captureTestSurfaces).not.toHaveBeenCalled();
+  await step(3,[{kind:'gpu',op:GPU_OP.BUFFER_DELETE,words:[1]}]);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(budget.retained);
+  expect(drawFrame).not.toHaveBeenCalled(); // a read-only cut must not redraw the live canvas
+  expect(readTestLegacyTarget).toHaveBeenCalledTimes(renderTarget?1:0);
+  const snapshot=await states.snapshot();
+  expect(snapshot.gpuBase?.frame.items.filter(i=>i.kind==='texUpdate')).toEqual([
+    expect.objectContaining({handle:7,data:renderTarget?native:shadow}),
+  ]);
+  shadow.fill(0);
+  expect(snapshot.gpuBase?.frame.items.find(i=>i.kind==='texUpdate')?.data).not.toEqual(shadow);
+});
+
 it.each(['rewrite','delete','repeated writes'])('backs off failed live readback and handles texture %s',async action=>{
   const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
   const frame=new Frame();frame.reset(4,4);
