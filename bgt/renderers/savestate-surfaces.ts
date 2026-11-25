@@ -28,12 +28,14 @@ function inspectWebGPU(this: WebGPURenderer): CheckpointInspection {
 }
 export async function captureWebGL2Renderer(this: WebGL2Renderer,letterbox: Letterbox,shadows:CheckpointShadows): Promise<CheckpointSurfaces> {
     const g = this['gl'], width = this['canvas'].width, height = this['canvas'].height;
-    g.bindFramebuffer(g.FRAMEBUFFER, this['snapshot']?.fbo ?? null);
+    const snapshot = this['snapshot'];
+    if (snapshot?.w !== width || snapshot.h !== height) throw new Error('Missing presented WebGL2 checkpoint surface');
+    g.bindFramebuffer(g.FRAMEBUFFER, snapshot.fbo);
     const raw = new Uint8Array(width * height * 4), data = new Uint8Array(raw.length);
     g.readPixels(0, 0, width, height, g.RGBA, g.UNSIGNED_BYTE, raw);
     for (let y = 0; y < height; y++) data.set(raw.subarray((height-1-y)*width*4,(height-y)*width*4),y*width*4);
     g.bindFramebuffer(g.FRAMEBUFFER,null);
-    return {physical:{width,height,data},...shadows,retained:!!this['snapshot'],letterbox:{...letterbox}};
+    return {physical:{width,height,data},...shadows,retained:snapshot.retained,letterbox:{...letterbox}};
   }
 export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces): void {
     for(const b of s.buffers) {const native=this.gpu['buffers'].get(b.handle)!;native.data=b.shadow.slice();native.generated=b.generated;native.shared=false;}
@@ -47,8 +49,7 @@ export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces
     g.bindFramebuffer(g.DRAW_FRAMEBUFFER,null); g.disable(g.SCISSOR_TEST);
     g.blitFramebuffer(0,0,width,height,0,0,width,height,g.COLOR_BUFFER_BIT,g.NEAREST);
     if (this['snapshot']) { g.deleteTexture(this['snapshot'].texture); g.deleteFramebuffer(this['snapshot'].fbo); }
-    this['snapshot'] = s.retained ? {texture,fbo,w:width,h:height,lb:{...s.letterbox}} : undefined;
-    if (!s.retained) { g.deleteTexture(texture); g.deleteFramebuffer(fbo); }
+    this['snapshot'] = {texture,fbo,w:width,h:height,lb:{...s.letterbox},retained:s.retained};
     g.bindFramebuffer(g.FRAMEBUFFER,null);
   }
 
@@ -63,10 +64,13 @@ export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Lett
     let physical:Pixels;
     try {
       if(temp&&screen)this['presentTexture'](temp,screen.createView(),letterbox,[0,0,1,1]);
-      physical=await this['readback'](snapshot??temp??this['ctx'].getCurrentTexture(),this['format']==='bgra8unorm');
+      const presented = snapshot ?? temp;
+      if (presented?.width !== this.canvas.width || presented.height !== this.canvas.height)
+        throw new Error('Missing presented WebGPU checkpoint surface');
+      physical=await this['readback'](presented,this['format']==='bgra8unorm');
     } finally { temp?.destroy(); }
     const logical = this['screen'] ? await this['readback'](this['screen']) : undefined;
-    return {physical,logical,...shadows,retained:!!this['snapshot'],letterbox:{...letterbox}};
+    return {physical,logical,...shadows,retained:!!this['snapshotLB'],letterbox:{...letterbox}};
   }
 export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces): void {
     // K74: a restored checkpoint copy is private to the executor (the decoder settles its own store).
@@ -85,8 +89,9 @@ export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces
     const encoder=device.createCommandEncoder();
     encoder.copyTextureToTexture({texture:physical},{texture:this['ctx'].getCurrentTexture()},[s.physical.width,s.physical.height]);
     device.queue.submit([encoder.finish()]);
-    this['snapshot'] = s.retained ? physical : undefined; this['snapshotLB'] = s.retained ? {...s.letterbox} : undefined;
-    if (!s.retained) physical.destroy();
+    this['snapshot'] = s.retained || !s.logical ? physical : undefined;
+    this['snapshotLB'] = s.retained ? {...s.letterbox} : undefined;
+    if (!this['snapshot']) physical.destroy();
   }
 
 

@@ -107,7 +107,7 @@ export class WebGPURenderer implements Renderer {
   gpu!: WebGPUCommands;
   private screen?: GPUTexture;
   private snapshot?: GPUTexture;
-  private snapshotLB?: Letterbox;
+  private snapshotLB?: Letterbox; // Absent for a checkpoint-only copy, never loaded by legacy drawing.
   readonly kind = 'webgpu' as const;
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0, nativePasses: 0, nativeSubmits: 0,
     mergedPasses: 0, bufferRenames: 0, gpuMs: null, gpuTiming: 'off' };
@@ -339,7 +339,7 @@ export class WebGPURenderer implements Renderer {
     this.targets.delete(handle);
   }
 
-  drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Promise<Pixels | null> | null {
+  drawFrame(frame: Frame, lb: Letterbox, readback: boolean, retainPixels = false): Promise<Pixels | null> | null {
     if (this.lost) { for(const it of frame.items)if(it.kind==='readback')it.complete();return null; }
     const t0 = performance.now();
     const { device } = this.o;
@@ -376,10 +376,16 @@ export class WebGPURenderer implements Renderer {
         const encoder = device.createCommandEncoder();
         encoder.copyTextureToTexture({ texture: this.snapshot }, { texture: output }, [output.width, output.height]);
         q.submit([encoder.finish()]);
-      } else this.presentTexture(output, this.snapshot.createView(), lb,
-        [old.x/this.snapshot.width, old.y/this.snapshot.height,
-          old.w/this.snapshot.width, old.h/this.snapshot.height]);
-      return readback ? this.readback(output, this.format === 'bgra8unorm') : null;
+        return readback ? this.readback(output, this.format === 'bgra8unorm') : null;
+      }
+      // Checkpoints must capture the new layout, not the older-sized snapshot.
+      // For them, fall through to compose and save the resized output below.
+      if (!retainPixels) {
+        this.presentTexture(output, this.snapshot.createView(), lb,
+          [old.x/this.snapshot.width, old.y/this.snapshot.height,
+            old.w/this.snapshot.width, old.h/this.snapshot.height]);
+        return readback ? this.readback(output, this.format === 'bgra8unorm') : null;
+      }
     }
     const gpuFrame = !!this.screen || frame.items.some(it => it.kind === 'gpu' &&
       ((it.op === GPU_OP.BLIT && (!it.words[0] || !it.words[2])) || it.op === GPU_OP.PASS_BEGIN &&
@@ -510,10 +516,12 @@ export class WebGPURenderer implements Renderer {
       open(0); // screen never drawn this frame: still clear it
     }
     // K74 (Q137): a §13 screen frame keeps no snapshot (the retained screen re-presents it, above); only the 2D-only
-    // path still keeps the presented physical image. Before K74 every screen frame copied the canvas into one.
+    // path may keep the presented physical image, including a checkpoint-only copy. Before K74 every screen frame
+    // copied the canvas into one.
     if (gpuFrame && this.snapshot) { this.snapshot.destroy(); this.snapshot = undefined; this.snapshotLB = undefined; }
-    if (this.snapshot && (this.snapshot.width !== output.width || this.snapshot.height !== output.height)) {
-      this.snapshot.destroy();
+    if (!gpuFrame && (this.snapshot || retainPixels) &&
+        (this.snapshot?.width !== output.width || this.snapshot.height !== output.height)) {
+      this.snapshot?.destroy();
       this.snapshot = device.createTexture({ size: [output.width, output.height], format: this.format,
         usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
     }
@@ -522,7 +530,7 @@ export class WebGPURenderer implements Renderer {
     // into the canvas texture itself, as before). At most one of the §13 frame encoder and an open 2D pass holds work
     // here (2D draws flush §13 work first).
     const snapshot = this.snapshot;
-    if (snapshot) this.snapshotLB = { ...outputLB };
+    if (snapshot && preserve) this.snapshotLB = { ...outputLB };
     const tail = (e: GPUCommandEncoder) => {
       if (gpuFrame) this.presentTexture(output, view, outputLB, [0,0,1,1], e);
       if (snapshot) e.copyTextureToTexture({ texture: output }, { texture: snapshot }, [output.width, output.height]);

@@ -113,7 +113,7 @@ export class CheckpointReplay {
     });
     if(this.renderer.canvas.width!==record.width||this.renderer.canvas.height!==record.height)this.renderer.resize(record.width,record.height);
     const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-    await this.renderer.drawFrame(frame,record.letterbox,false);
+    await this.renderer.drawFrame(frame,record.letterbox,false,true);
     // Native work is ordered within one renderer/queue. Shader completions are
     // still checked before replay can proceed; other frames need no GPU fence.
     if(finish||pending.length)await this.renderer.finish();

@@ -801,7 +801,8 @@ export class BGTRuntime {
         await this.frameObserver(frame, letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
       }
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHarness?.frame(frame,letterbox,host.frameIndex,this.canvas.width,this.canvas.height);
-      out = await r.drawFrame(frame, letterbox, readback);
+      out = await r.drawFrame(frame, letterbox, readback,
+        (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && !!this.testHarness);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
