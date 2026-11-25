@@ -4,7 +4,7 @@
 import { GPU_OP as O } from './abi';
 import { Frame, type FrameItem, type TextureEntry } from './commands';
 import { TEXEL_BYTES, canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
-import {recordCheckpointFrame,CheckpointReplay,checkpointFrameBytes,type CheckpointFrame} from './savestate-recording';
+import {recordCheckpointFrame,CheckpointReplay,checkpointFrameBytes,shaderForCut,type CheckpointFrame} from './savestate-recording';
 import { GPUByteLimit, ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, replayShaderBytes, textureReadbackStagingBytes } from './savestate-budget';
 import { cloneCheckpoint } from './savestate-clone';
 import { decodeBytes } from '../renderers/recording';
@@ -49,7 +49,8 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
   for (const record of records) {
    // Provenance never consumes the upload bytes. Don't decode/realign them
    // here, before the replay workspace preflight.
-   for (const item of record.items as unknown as FrameItem[]) {
+   for (const recorded of record.items) {
+    const item=recorded as unknown as FrameItem;
     // Failed creations reserve failed shader/pipeline objects; failed mutations have no effect.
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
@@ -58,6 +59,10 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
     if (item.kind === 'texDelete') r.legacy.delete(item.handle);
     if (item.kind === 'texUpdate'&&!metadataOnly) r.legacy.get(item.handle)!.updates.push(item);
     if (item.kind !== 'gpu') continue;
+    if(item.op===O.SHADER_CREATE) {
+      const shader=shaderForCut(recorded);
+      r.shaders.set(shader.words[0],shader);continue;
+    }
     const {op,words:w}=canonicalize(item.op,item.words), h=w[0], it={...item,op,words:w};
     switch(op) {
       case O.BUFFER_CREATE:delete it.data;r.buffers.set(h,it);break;
@@ -74,9 +79,6 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null, 
       case O.TEXTURE_DELETE:r.textures.delete(h);break;
       case O.SAMPLER_CREATE_EX:r.samplers.set(h,it);break;
       case O.SAMPLER_DELETE:r.samplers.delete(h);break;
-      // Shader completion may still be in flight when entering metadata-only
-      // mode. Keep the actual record so its eventual outcome isn't lost.
-      case O.SHADER_CREATE:r.shaders.set(h,item);break;
       case O.SHADER_DELETE:r.shaders.delete(h);break;
       case O.PIPELINE_CREATE:r.pipelines.set(h,it);break;
       case O.PIPELINE_DELETE:r.pipelines.delete(h);r.feedback.delete(h);break;
